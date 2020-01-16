@@ -99,7 +99,7 @@ ghci p mexpr reloadReq = do
 
       -- Define some Regex patterns to use to determine GHCi's state based on output
       let okModulesLoaded = "Ok.*module.*loaded." :: ByteString
-          failedNoModulesLoaded = "Failed, no modules loaded." :: ByteString
+          failedNoModulesLoaded = "Failed,.*modules loaded." :: ByteString
           -- TODO: Is there a way to distinguish GHCi's actual exception output
           -- from someone printing "*** Exception:" to stderr?
           -- TODO: Are there other exception patterns to watch out for?

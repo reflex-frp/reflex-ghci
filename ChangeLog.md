@@ -1,5 +1,9 @@
 # Revision history for reflex-ghci
 
+## 0.1.3.0
+
+* Library: Fix parsing of "Failed, n modules loaded." message
+
 ## 0.1.2.0
 
 * Extract console GHCi widgets from the executable into a library module
