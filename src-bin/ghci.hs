@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecursiveDo #-}
@@ -18,7 +19,7 @@ import Options.Applicative
 
 data GhciArg = GhciArg
   { _ghciArg_replCommand :: String
-  , _ghciArg_execCommand :: String
+  , _ghciArg_execCommand :: Maybe String
   }
 
 ghciArg :: Parser GhciArg
@@ -27,14 +28,20 @@ ghciArg = GhciArg
     ( long "command" <>
       short 'c' <>
       help "The ghci/cabal repl command to run" <>
-      value "cabal repl"
+      showDefault <>
+      value "cabal repl" <>
+      metavar "COMMAND"
     )
-  <*> strOption
+  <*> optional (strOption
     ( long "expression" <>
       short 'e' <>
-      help "The expression to evaluate once modules have successfully loaded" <>
-      value ""
-    )
+      help "The optional expression to evaluate once modules have successfully loaded" <>
+      showDefaultWith (\case
+        "" -> "no expression"
+        expr -> expr) <>
+      value "" <>
+      metavar "EXPR"
+    ))
 
 main :: IO ()
 main = do
@@ -46,8 +53,7 @@ main = do
   GhciArg { _ghciArg_replCommand = cmd, _ghciArg_execCommand = expr } <- execParser opts
   mainWidget $ do
     exit <- keyCombo (V.KChar 'c', [V.MCtrl])
-    let mexpr = if null expr then Nothing else Just $ T.encodeUtf8 $ T.pack expr
-    g <- ghciWatch (shell cmd) mexpr
+    g <- ghciWatch (shell cmd) $ T.encodeUtf8 . T.pack <$> expr
     pb <- getPostBuild
     let ghciExit = _process_exit (_ghci_process g)
     ghciExited <- hold False $ True <$ ghciExit
@@ -76,7 +82,7 @@ main = do
           -- Rebuild the entire output widget so that we don't have to worry about resetting scroll state
           _ <- networkHold scrollingOutput $ ffor (_ghci_reload g) $ \_ -> scrollingOutput
           return ()
-    case mexpr of
+    case expr of
       Nothing -> ghciLoadStatus
       Just _ -> void $ splitVDrag (hRule doubleBoxStyle) ghciLoadStatus ghciExecOutput
     return $ () <$ exit
@@ -88,3 +94,4 @@ test = do
   -- error "asdf"
   -- Just n <- return (Nothing :: Maybe Int)
   go 1
+  -- putStrLn "Done"

@@ -121,6 +121,9 @@ ghci p mexpr reloadReq = do
             (lastLine:expectedMessage:_)
               | lastLine == prompt && expectedMessage Regex.=~ okModulesLoaded -> const Status_LoadSucceeded
               | lastLine == prompt && expectedMessage Regex.=~ failedNoModulesLoaded -> const Status_LoadFailed
+              | lastLine == prompt -> \case
+                  Status_Executing -> Status_ExecutionSucceeded
+                  s -> s
               | lastLine Regex.=~ ghciVersionMessage -> const Status_Loading
               | otherwise -> \case
                   Status_LoadSucceeded -> case mexpr of
