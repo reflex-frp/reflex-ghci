@@ -36,10 +36,6 @@ ghciArg = GhciArg
     ( long "expression" <>
       short 'e' <>
       help "The optional expression to evaluate once modules have successfully loaded" <>
-      showDefaultWith (\case
-        "" -> "no expression"
-        expr -> expr) <>
-      value "" <>
       metavar "EXPR"
     ))
 
