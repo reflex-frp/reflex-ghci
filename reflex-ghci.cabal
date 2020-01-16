@@ -5,7 +5,7 @@ synopsis: A GHCi widget library for use in reflex applications
 description:
   Run GHCi from within a reflex application and interact with it using a functional-reactive interface.
   .
-  <<https://imgur.com/a/bAT39zr>>
+  <<https://i.imgur.com/5y61Qx7.png>>
   .
 bug-reports: https://github.com/reflex-frp/reflex-ghci/issues
 license: BSD3
