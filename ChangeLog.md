@@ -3,6 +3,7 @@
 ## 0.1.2.0
 
 * Extract console GHCi widgets from the executable into a library module
+* Executable: Run with -Wall when repl command is unspecified
 
 ## 0.1.1.0
 

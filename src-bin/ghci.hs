@@ -1,17 +1,11 @@
-{-# LANGUAGE MultiWayIf #-}
-{-# LANGUAGE OverloadedStrings #-}
-import Reflex.Network
-import Reflex.Process
 import Reflex.Process.GHCi
 import Reflex.Vty
 import Reflex.Vty.GHCi
 
 import Control.Concurrent (threadDelay)
-import Control.Monad (void, (<=<))
 import qualified Graphics.Vty.Input as V
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
-import System.Environment (getArgs)
 import System.Process (shell)
 
 import Options.Applicative
@@ -28,7 +22,7 @@ ghciArg = GhciArg
       short 'c' <>
       help "The ghci/cabal repl command to run" <>
       showDefault <>
-      value "cabal repl" <>
+      value "cabal repl --repl-options=-Wall" <>
       metavar "COMMAND"
     )
   <*> optional (strOption
@@ -66,13 +60,11 @@ test = do
   go 1
 
 err :: IO ()
-err = do
-  error "This is an error"
-  test
+err = error "This is an error"
 
 err2 :: IO ()
 err2 = do
-  Just n <- return (Nothing :: Maybe Int)
+  Just _ <- return (Nothing :: Maybe Int)
   test
 
 done :: IO ()
