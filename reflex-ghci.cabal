@@ -1,6 +1,6 @@
 cabal-version: >=1.10
 name: reflex-ghci
-version: 0.1.0.0
+version: 0.1.1.0
 synopsis: A GHCi widget library for use in reflex applications
 description:
   Run GHCi from within a reflex application and interact with it using a functional-reactive interface.
