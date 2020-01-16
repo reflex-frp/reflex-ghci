@@ -39,6 +39,7 @@ executable reflex-ghci
   main-is: ghci.hs
   build-depends:
       base >= 4.12 && < 4.13
+    , process >= 1.6 && < 1.7
     , reflex >= 0.6.3 && < 0.7
     , reflex-ghci
     , reflex-vty >= 0.1.3 && < 0.2

@@ -15,9 +15,6 @@ module Reflex.Process.GHCi
   , moduleOutput
   , execOutput
   , collectOutput
-  , cabalReplCmd
-  , ReplVariety(..)
-  , ReplCmd(..)
   , statusMessage
   ) where
 
@@ -37,19 +34,6 @@ import System.FilePath.Posix (takeExtension)
 import qualified System.Process as P
 import qualified Text.Regex.TDFA as Regex ((=~))
 
--- | The type of REPL we're running (used to determine how to pass flags)
-data ReplVariety = ReplVariety_GHCi
-                 | ReplVariety_Cabal
-  deriving (Show, Read, Eq, Ord)
-
--- | The REPL command to execute
-data ReplCmd = ReplCmd
-  { _replCmd_variety :: ReplVariety
-  , _replCmd_command :: FilePath
-  , _replCmd_arguments :: [String]
-  }
-  deriving (Show, Read, Eq, Ord)
-
 -- | Runs a GHCi process and reloads it whenever the provided event fires
 ghci
   :: ( TriggerEvent t m
@@ -60,7 +44,7 @@ ghci
      , MonadFix m
      , MonadHold t m
      )
-  => ReplCmd
+  => P.CreateProcess
   -- ^ Command to run to enter GHCi
   -> Maybe ByteString
   -- ^ Expression to evaluate whenever GHCi successfully loads modules
@@ -69,15 +53,7 @@ ghci
   -> m (Ghci t)
 ghci p mexpr reloadReq = do
 
-  let flags =
-        [ "-fno-break-on-exception"
-        , "-fno-break-on-error"
-        ]
-      pWithFlags = P.proc (_replCmd_command p) $ _replCmd_arguments p <>
-        case _replCmd_variety p of
-          ReplVariety_Cabal -> ("--repl-options="<>) <$> flags
-          ReplVariety_GHCi -> flags
-      cmd = pWithFlags { P.create_group = True } -- Need to set this so that group interrupts don't impact parent
+  let cmd = p { P.create_group = True } -- Need to set this so that group interrupts don't impact parent
 
   -- Run the process and feed it some input:
   rec proc <- createProcess cmd $ ProcessConfig
@@ -90,7 +66,12 @@ ghci p mexpr reloadReq = do
             -- On first load, set the prompt
             , let f old new = if old == Status_Initializing && new == Status_Loading
                     then Just $ C8.intercalate "\n"
-                      [ "putStrLn \"Initialized. Setting up reflex-ghci...\""
+                      [ "Prelude.putStrLn \"Initialized. Setting up reflex-ghci...\""
+                      , ":set prompt ..."
+                      , ":set -fno-break-on-exception"
+                      , ":set -fno-break-on-error"
+                      , ":set prompt \"\""
+                      , "Prelude.putStrLn \"\""
                       , ":set prompt " <> prompt
                       , ":r"
                       ]
@@ -186,7 +167,7 @@ ghciWatch
      , MonadFix m
      , MonadHold t m
      )
-  => ReplCmd
+  => P.CreateProcess
   -> Maybe ByteString
   -> m (Ghci t)
 ghciWatch p mexec = do
@@ -215,14 +196,6 @@ ghciWatch p mexec = do
   where
     noDebounce :: FS.WatchConfig -> FS.WatchConfig
     noDebounce cfg = cfg { FS.confDebounce = FS.NoDebounce }
-
--- | Construct a @cabal repl@ command
-cabalReplCmd :: String -> ReplCmd
-cabalReplCmd component = ReplCmd ReplVariety_Cabal "cabal"
-  [ "repl"
-  , component
-  , "--repl-options=-Wall"
-  ]
 
 -- | The output of the GHCi process
 data Ghci t = Ghci

@@ -12,6 +12,7 @@ import qualified Graphics.Vty.Input as V
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import System.Environment (getArgs)
+import System.Process (shell)
 
 main :: IO ()
 main = do
@@ -19,7 +20,7 @@ main = do
   mainWidget $ do
     exit <- keyCombo (V.KChar 'c', [V.MCtrl])
     let mexpr = if null expr then Nothing else Just $ T.encodeUtf8 $ T.pack expr
-    g <- ghciWatch (cabalReplCmd cmd) mexpr
+    g <- ghciWatch (shell cmd) mexpr
     pb <- getPostBuild
     let ghciExit = _process_exit (_ghci_process g)
     ghciExited <- hold False $ True <$ ghciExit
