@@ -14,9 +14,36 @@ import qualified Data.Text.Encoding as T
 import System.Environment (getArgs)
 import System.Process (shell)
 
+import Options.Applicative
+
+data GhciArg = GhciArg
+  { _ghciArg_replCommand :: String
+  , _ghciArg_execCommand :: String
+  }
+
+ghciArg :: Parser GhciArg
+ghciArg = GhciArg
+  <$> strOption
+    ( long "command" <>
+      short 'c' <>
+      help "The ghci/cabal repl command to run" <>
+      value "cabal repl"
+    )
+  <*> strOption
+    ( long "expression" <>
+      short 'e' <>
+      help "The expression to evaluate once modules have successfully loaded" <>
+      value ""
+    )
+
 main :: IO ()
 main = do
-  [cmd, expr] <- getArgs
+  let opts = info (ghciArg <**> helper) $ mconcat
+        [ fullDesc
+        , progDesc "Run a Haskell REPL that automatically reloads when source files change."
+        , header "Welcome to reflex-ghci!"
+        ]
+  GhciArg { _ghciArg_replCommand = cmd, _ghciArg_execCommand = expr } <- execParser opts
   mainWidget $ do
     exit <- keyCombo (V.KChar 'c', [V.MCtrl])
     let mexpr = if null expr then Nothing else Just $ T.encodeUtf8 $ T.pack expr
@@ -28,7 +55,7 @@ main = do
           fixed 3 $ boxStatic def $ text <=< hold "" $ leftmost
             [ statusMessage <$> updated (_ghci_status g)
             , statusMessage <$> tag (current $ _ghci_status g) pb
-            , ("GHCi exited with " <>) . T.pack . show <$> ghciExit
+            , ("Command exited with " <>) . T.pack . show <$> ghciExit
             ]
           out <- moduleOutput (not <$> ghciExited) g
           (dh, scroll) <- stretch $ do
