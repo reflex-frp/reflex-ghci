@@ -11,16 +11,15 @@ import Control.Monad (void, (<=<))
 import qualified Graphics.Vty.Input as V
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
-import System.IO.Temp (withSystemTempDirectory)
 import System.Environment (getArgs)
 
 main :: IO ()
 main = do
   [cmd, expr] <- getArgs
-  withSystemTempDirectory "reflex-ghci" $ \tempDir -> mainWidget $ do
+  mainWidget $ do
     exit <- keyCombo (V.KChar 'c', [V.MCtrl])
     let mexpr = if null expr then Nothing else Just $ T.encodeUtf8 $ T.pack expr
-    g <- ghciWatch tempDir (cabalReplCmd cmd) mexpr
+    g <- ghciWatch (cabalReplCmd cmd) mexpr
     pb <- getPostBuild
     let ghciExit = _process_exit (_ghci_process g)
     ghciExited <- hold False $ True <$ ghciExit

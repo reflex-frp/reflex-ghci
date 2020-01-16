@@ -33,7 +33,7 @@ import qualified Data.ByteString.Char8 as C8
 import Data.String (IsString)
 import System.Directory (getCurrentDirectory)
 import qualified System.FSNotify as FS
-import System.FilePath.Posix ((</>), takeExtension)
+import System.FilePath.Posix (takeExtension)
 import qualified System.Process as P
 import qualified Text.Regex.TDFA as Regex ((=~))
 
@@ -60,28 +60,17 @@ ghci
      , MonadFix m
      , MonadHold t m
      )
-  => FilePath
-  -- ^ (Temporary) directory where a .ghci file will be stored
-  -> ReplCmd
+  => ReplCmd
   -- ^ Command to run to enter GHCi
   -> Maybe ByteString
   -- ^ Expression to evaluate whenever GHCi successfully loads modules
   -> Event t ()
   -- ^ Ask GHCi to reload
   -> m (Ghci t)
-ghci tempDir p mexpr reloadReq = do
-
-  -- Create a .ghci file with our custom settings
-  -- TODO: Should the .ghci file be customizable by users of this function?
-  let dotGhci = tempDir </> ".ghci"
-  liftIO $ writeFile dotGhci $ unlines
-    [ ":set prompt " <> prompt
-    ]
+ghci p mexpr reloadReq = do
 
   let flags =
-        [ "-ignore-dot-ghci"
-        , "-ghci-script " <> dotGhci
-        , "-fno-break-on-exception"
+        [ "-fno-break-on-exception"
         , "-fno-break-on-error"
         ]
       pWithFlags = P.proc (_replCmd_command p) $ _replCmd_arguments p <>
@@ -98,6 +87,15 @@ ghci tempDir p mexpr reloadReq = do
             , fforMaybe (updated status) $ \case
                 Status_LoadSucceeded -> mexpr
                 _ -> Nothing
+            -- On first load, set the prompt
+            , let f old new = if old == Status_Initializing && new == Status_Loading
+                    then Just $ C8.intercalate "\n"
+                      [ "putStrLn \"Initialized. Setting up reflex-ghci...\""
+                      , ":set prompt " <> prompt
+                      , ":r"
+                      ]
+                    else Nothing
+              in attachWithMaybe f (current status) (updated status)
             ]
         , _processConfig_signal = never
         }
@@ -175,7 +173,7 @@ ghci tempDir p mexpr reloadReq = do
     }
   where
     prompt :: IsString a => a
-    prompt = "~WAITING~"
+    prompt = "<| Waiting |>"
 
 -- | Run a GHCi process that watches for changes to Haskell source files in the
 -- current directory and reloads if they are modified
@@ -188,11 +186,10 @@ ghciWatch
      , MonadFix m
      , MonadHold t m
      )
-  => FilePath
-  -> ReplCmd
+  => ReplCmd
   -> Maybe ByteString
   -> m (Ghci t)
-ghciWatch tempDir p mexec = do
+ghciWatch p mexec = do
   -- Get the current directory so we can observe changes in it
   dir <- liftIO getCurrentDirectory
 
@@ -214,7 +211,7 @@ ghciWatch tempDir p mexec = do
   batchedFsEvents <- batchOccurrences 0.1 filteredFsEvents
 
   -- Call GHCi and request a reload every time the files we're watching change
-  ghci tempDir p mexec $ () <$ batchedFsEvents
+  ghci p mexec $ () <$ batchedFsEvents
   where
     noDebounce :: FS.WatchConfig -> FS.WatchConfig
     noDebounce cfg = cfg { FS.confDebounce = FS.NoDebounce }
