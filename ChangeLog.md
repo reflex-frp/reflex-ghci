@@ -1,5 +1,9 @@
 # Revision history for reflex-ghci
 
+## 0.1.2.0
+
+* Extract console GHCi widgets from the executable into a library module
+
 ## 0.1.1.0
 
 * Executable: Fix option parser so that there is no expression to evaluate by default
