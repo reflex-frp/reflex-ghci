@@ -262,6 +262,7 @@ collectOutput clear out = foldDyn ($) "" $ leftmost
   , const "" <$ clear
   ]
 
+-- | Describe the current status of GHCi in a human-readable way
 statusMessage :: IsString a => Status -> a
 statusMessage = \case
   Status_Initializing -> "Initializing..."
