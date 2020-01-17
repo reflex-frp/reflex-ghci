@@ -3,6 +3,7 @@
 ## 0.1.3.0
 
 * Library: Fix parsing of "Failed, n modules loaded." message
+* Library: Properly initialize when GHCi version message is the first output line
 
 ## 0.1.2.0
 

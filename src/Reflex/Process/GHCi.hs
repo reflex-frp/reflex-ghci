@@ -130,6 +130,9 @@ ghci p mexpr reloadReq = do
                     Nothing -> Status_LoadSucceeded
                     Just _ -> Status_Executing
                   s -> s
+
+            (lastLine:_)
+              | lastLine Regex.=~ ghciVersionMessage -> const Status_Loading
             _ -> id
         ]
 
