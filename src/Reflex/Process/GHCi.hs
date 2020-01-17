@@ -124,12 +124,14 @@ ghci p mexpr reloadReq = do
               | lastLine == prompt -> \case
                   Status_Executing -> Status_ExecutionSucceeded
                   s -> s
-              | lastLine Regex.=~ ghciVersionMessage -> const Status_Loading
               | otherwise -> \case
                   Status_LoadSucceeded -> case mexpr of
                     Nothing -> Status_LoadSucceeded
                     Just _ -> Status_Executing
                   s -> s
+
+            (lastLine:_)
+              | lastLine Regex.=~ ghciVersionMessage -> const Status_Loading
             _ -> id
         ]
 
