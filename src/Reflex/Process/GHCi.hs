@@ -19,7 +19,7 @@ module Reflex.Process.GHCi
   ) where
 
 import Reflex
-import Reflex.FSNotify (watchDirectory)
+import Reflex.FSNotify (watchTree)
 import Reflex.Process (ProcessConfig(..), Process(..), createProcess)
 
 import Control.Monad ((<=<))
@@ -182,19 +182,18 @@ ghciWatch p mexec = do
   -- TODO: Separate the filesystem event logic into its own function
   -- Watch the project directory for changes
   pb <- getPostBuild
-  fsEvents <- watchDirectory (noDebounce FS.defaultConfig) (dir <$ pb)
-
   -- TODO Handle changes to "src" and ".cabal" differently. ":r" is only really appropriate
   -- when there are changes to loaded modules.
   -- We could use ":show modules" to see which hs files are loaded and determine what to do based
   -- on that, but we'll need to parse that output.
-  let filteredFsEvents = flip ffilter fsEvents $ \e -> 
-        takeExtension (FS.eventPath e) `elem` [".hs", ".lhs"]
+
+  fsEvents <- watchTree (noDebounce FS.defaultConfig) (dir <$ pb) $ \e ->
+    takeExtension (FS.eventPath e) `elem` [".hs", ".lhs"]
 
   -- Events are batched because otherwise we'd get several updates corresponding to one
   -- user-level change. For example, saving a file in vim results in an event claiming
   -- the file was removed followed almost immediately by an event adding the file
-  batchedFsEvents <- batchOccurrences 0.1 filteredFsEvents
+  batchedFsEvents <- batchOccurrences 0.1 fsEvents
 
   -- Call GHCi and request a reload every time the files we're watching change
   ghci p mexec $ () <$ batchedFsEvents
