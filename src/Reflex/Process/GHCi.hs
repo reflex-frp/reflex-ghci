@@ -28,9 +28,10 @@ import Control.Monad.IO.Class (liftIO, MonadIO)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as C8
 import Data.String (IsString)
+import Data.List (isPrefixOf)
 import System.Directory (getCurrentDirectory)
 import qualified System.FSNotify as FS
-import System.FilePath.Posix (takeExtension)
+import System.FilePath.Posix (takeFileName, takeExtension)
 import System.Posix.Signals (sigINT)
 import qualified System.Process as P
 import qualified Text.Regex.TDFA as Regex ((=~))
@@ -185,7 +186,10 @@ ghciWatch p mexec = do
   -- on that, but we'll need to parse that output.
 
   fsEvents <- watchDirectoryTree (noDebounce FS.defaultConfig) (dir <$ pb) $ \e ->
-    takeExtension (FS.eventPath e) `elem` [".hs", ".lhs"]
+    let path = FS.eventPath e
+        name = takeFileName path
+        isEmacsLockFile = (".#" `isPrefixOf`)
+    in takeExtension path `elem` [".hs", ".lhs"] && not (isEmacsLockFile name)
 
   -- Events are batched because otherwise we'd get several updates corresponding to one
   -- user-level change. For example, saving a file in vim results in an event claiming
