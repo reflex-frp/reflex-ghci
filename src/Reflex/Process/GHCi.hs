@@ -31,6 +31,7 @@ import Data.String (IsString)
 import System.Directory (getCurrentDirectory)
 import qualified System.FSNotify as FS
 import System.FilePath.Posix (takeExtension)
+import System.Posix.Signals (sigINT)
 import qualified System.Process as P
 import qualified Text.Regex.TDFA as Regex ((=~))
 
@@ -51,10 +52,7 @@ ghci
   -> Event t ()
   -- ^ Ask GHCi to reload
   -> m (Ghci t)
-ghci p mexpr reloadReq = do
-
-  let cmd = p { P.create_group = True } -- Need to set this so that group interrupts don't impact parent
-
+ghci cmd mexpr reloadReq = do
   -- Run the process and feed it some input:
   rec proc <- createProcess cmd $ ProcessConfig
         { _processConfig_stdin = leftmost
@@ -78,7 +76,7 @@ ghci p mexpr reloadReq = do
                     else Nothing
               in attachWithMaybe f (current status) (updated status)
             ]
-        , _processConfig_signal = never
+        , _processConfig_signal = sigINT <$ requestInterrupt
         }
 
       -- Reload
@@ -94,8 +92,6 @@ ghci p mexpr reloadReq = do
      -- Only interrupt when there's a file change and we're ready and not in an idle state
       let interruptible s = s `elem` [Status_Loading, Status_Executing]
           requestInterrupt = gate (interruptible <$> current status) $ (() <$ reloadReq)
-      performEvent_ $ ffor requestInterrupt $
-        const $ liftIO $ P.interruptProcessGroupOf $ _process_handle proc
 
       -- Define some Regex patterns to use to determine GHCi's state based on output
       let okModulesLoaded = "Ok.*module.*loaded." :: ByteString
@@ -124,6 +120,7 @@ ghci p mexpr reloadReq = do
               | lastLine == prompt -> \case
                   Status_Executing -> Status_ExecutionSucceeded
                   s -> s
+              | lastLine Regex.=~ ghciVersionMessage -> const Status_Loading
               | otherwise -> \case
                   Status_LoadSucceeded -> case mexpr of
                     Nothing -> Status_LoadSucceeded
