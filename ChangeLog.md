@@ -4,6 +4,9 @@
 
 * Library: Fix parsing of "Failed, n modules loaded." message
 * Library: Properly initialize when GHCi version message is the first output line
+* Executable: Terminate ghci process when ctrl-c is received
+* Library: Don't use a separate process group. Send termination signal to process, not group
+* Library: Use `watchDirectoryTree` from `Reflex.FSNotify` to avoid symlink cycles when enumerating directories
 
 ## 0.1.2.0
 
