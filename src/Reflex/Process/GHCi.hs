@@ -19,7 +19,7 @@ module Reflex.Process.GHCi
   ) where
 
 import Reflex
-import Reflex.FSNotify (watchTree)
+import Reflex.FSNotify (watchDirectoryTree)
 import Reflex.Process (ProcessConfig(..), Process(..), createProcess)
 
 import Control.Monad ((<=<))
@@ -187,7 +187,7 @@ ghciWatch p mexec = do
   -- We could use ":show modules" to see which hs files are loaded and determine what to do based
   -- on that, but we'll need to parse that output.
 
-  fsEvents <- watchTree (noDebounce FS.defaultConfig) (dir <$ pb) $ \e ->
+  fsEvents <- watchDirectoryTree (noDebounce FS.defaultConfig) (dir <$ pb) $ \e ->
     takeExtension (FS.eventPath e) `elem` [".hs", ".lhs"]
 
   -- Events are batched because otherwise we'd get several updates corresponding to one
