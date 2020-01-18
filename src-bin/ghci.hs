@@ -4,6 +4,7 @@ import Reflex.Vty
 import Reflex.Vty.GHCi
 
 import Control.Concurrent (threadDelay)
+import Control.Monad.IO.Class (liftIO)
 import qualified Graphics.Vty.Input as V
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -47,7 +48,7 @@ main = do
     case expr of
       Nothing -> ghciModuleStatus g
       Just _ -> ghciPanes g
-    readyToExit <- performEvent $ ffor exit $ \_ -> liftIO $ terminateProcess $ _process_handle $ _ghci_process proc
+    readyToExit <- performEvent $ ffor exit $ \_ -> liftIO $ terminateProcess $ _process_handle $ _ghci_process g
     return $ () <$ readyToExit
 
 -- Some rudimentary test expressions
