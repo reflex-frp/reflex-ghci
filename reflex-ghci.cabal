@@ -1,6 +1,6 @@
 cabal-version: >=1.10
 name: reflex-ghci
-version: 0.1.3.0
+version: 0.1.3.1
 synopsis: A GHCi widget library for use in reflex applications
 description:
   Run GHCi from within a reflex application and interact with it using a functional-reactive interface.
@@ -33,7 +33,7 @@ library
     , process >= 1.6 && < 1.7
     , reflex >= 0.6.3 && < 0.7
     , reflex-fsnotify >= 0.2 && < 0.3
-    , reflex-process >= 0.1 && < 0.2
+    , reflex-process >= 0.2 && < 0.3
     , regex-tdfa >= 1.2.3 && < 1.3
     , reflex-vty >= 0.1.3 && < 0.2
     , text >= 1.2 && < 1.3
@@ -46,14 +46,14 @@ executable reflex-ghci
   hs-source-dirs: src-bin
   main-is: ghci.hs
   build-depends:
-      base >= 4.12 && < 4.13
+      base
     , optparse-applicative >= 0.14.0 && < 0.16
-    , process >= 1.6 && < 1.7
-    , reflex >= 0.6.3 && < 0.7
+    , process
+    , reflex
     , reflex-ghci
-    , reflex-vty >= 0.1.3 && < 0.2
-    , reflex-process >= 0.1 && < 0.2
-    , text >= 1.2 && < 1.3
+    , reflex-vty
+    , reflex-process
+    , text
     , vty >= 5.25 && < 5.26
   ghc-options: -threaded -rtsopts
   default-language: Haskell2010
