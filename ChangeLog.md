@@ -1,5 +1,9 @@
 # Revision history for reflex-ghci
 
+## 0.1.3.1
+
+* Update for compatibility with `reflex-process`-0.2.0.0.
+
 ## 0.1.3.0
 
 * Library: Fix parsing of "Failed, n modules loaded." message

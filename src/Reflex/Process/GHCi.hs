@@ -212,7 +212,7 @@ data Ghci t = Ghci
   -- ^ Event that fires when GHCi is reloading
   , _ghci_status :: Dynamic t Status
   -- ^ The current status of the GHCi process
-  , _ghci_process :: Process t
+  , _ghci_process :: Process t ByteString ByteString
   }
 
 -- | The state of the GHCi process
