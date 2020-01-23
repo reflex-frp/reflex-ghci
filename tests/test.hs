@@ -50,14 +50,16 @@ ghciInterruptible cmd mexpr = do
 
 main :: IO ()
 main = do
-  let cmd path = (P.proc "cabal" ["repl"]) { P.cwd = Just path }
+  src <- getCurrentDirectory
+  liftIO $ putStrLn src
+  let cmd path = (P.proc "cabal" ["repl"]) { P.cwd = Just $ src <> path }
   putStrLn "Testing lib-pkg"
-  testLoadAndExecute $ cmd "./tests/lib-pkg"
+  testLoadAndExecute $ cmd "/tests/lib-pkg"
   putStrLn "Testing lib-exe"
-  testLoadAndExecute $ cmd "./tests/exe-pkg"
+  testLoadAndExecute $ cmd "/tests/exe-pkg"
   putStrLn "Testing lib-pkg-err"
   mainWidget $ do
-    out <- testModuleLoadFailed $ cmd "./tests/lib-pkg-err"
+    out <- testModuleLoadFailed $ cmd $ "/tests/lib-pkg-err"
     failOnError out
     exitOnSuccess out
   putStrLn "Testing file watching and reloading"
