@@ -14,6 +14,7 @@ import Control.Monad.IO.Class (liftIO, MonadIO)
 import Data.ByteString (ByteString)
 import qualified System.Process as P
 import System.Directory
+import System.Environment
 import System.IO.Temp
 
 data ExitStatus = Succeeded | Failed String
@@ -50,6 +51,7 @@ ghciInterruptible cmd mexpr = do
 
 main :: IO ()
 main = do
+  setEnv "TERM" "xterm"
   src <- getCurrentDirectory
   let cmd path = (P.proc "cabal" ["repl"]) { P.cwd = Just $ src <> path }
   putStrLn "Testing lib-pkg"
