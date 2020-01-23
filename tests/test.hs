@@ -2,6 +2,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+import Headless
 import Reflex
 import Reflex.Process.GHCi
 import Reflex.Vty
@@ -30,28 +31,8 @@ data ExitStatus = Succeeded | Failed String
 -- | testExprNotFound     | Status_LoadSucceeded  | Status_ExecutionFailed    |
 -- | testExprFinished     | Status_LoadSucceeded  | Status_ExecutionSucceeded |
 
-ghciInterruptible
-  :: ( TriggerEvent t m
-     , PerformEvent t m
-     , Reflex t
-     , PostBuild t m
-     , MonadIO (Performable m)
-     , MonadIO m
-     , MonadFix m
-     , MonadHold t m
-     )
-  => P.CreateProcess
-  -> Maybe ByteString
-  -> VtyWidget t m (Ghci t)
-ghciInterruptible cmd mexpr = do
-  g <- ghciWatch cmd mexpr
-  e <- getExitEvent g never
-  performEvent_ $ ffor e $ \_ -> error "Interrupted."
-  return g
-
 main :: IO ()
 main = do
-  setEnv "TERM" "xterm"
   src <- getCurrentDirectory
   let cmd path = (P.proc "cabal" ["repl"]) { P.cwd = Just $ src <> path }
   putStrLn "Testing lib-pkg"
@@ -59,7 +40,7 @@ main = do
   putStrLn "Testing lib-exe"
   testLoadAndExecute $ cmd "/tests/exe-pkg"
   putStrLn "Testing lib-pkg-err"
-  mainWidget $ do
+  runHeadlessApp $ do
     out <- testModuleLoadFailed $ cmd $ "/tests/lib-pkg-err"
     failOnError out
     exitOnSuccess out
@@ -87,13 +68,13 @@ exitOnSuccess out =
 testLoadAndExecute
   :: P.CreateProcess
   -> IO ()
-testLoadAndExecute cmd = mainWidget $ do
+testLoadAndExecute cmd = runHeadlessApp $ do
   out <- switch . current <$> workflow (testModuleLoad cmd)
   performEvent_ $ liftIO . print <$> out
   failOnError out
   exitOnSuccess out
 
-type TestWorkflow t m = Workflow t (VtyWidget t m) (Event t ExitStatus)
+type TestWorkflow t m = Workflow t m (Event t ExitStatus)
 
 testModuleLoad
   :: ( MonadIO m
@@ -108,7 +89,7 @@ testModuleLoad
   -> TestWorkflow t m
 testModuleLoad cmd = Workflow $ do
   liftIO $ putStrLn "testModuleLoad"
-  g <- ghciInterruptible cmd Nothing
+  g <- ghciWatch cmd Nothing
   let loaded = fforMaybe (updated $ _ghci_status g) $ \case
         Status_LoadSucceeded -> Just True
         Status_LoadFailed -> Just False
@@ -131,7 +112,7 @@ testExprErr
   -> TestWorkflow t m
 testExprErr cmd = Workflow $ do
   liftIO $ putStrLn "testExprErr"
-  g <- ghciInterruptible cmd $ Just "err"
+  g <- ghciWatch cmd $ Just "err"
   let exception = fforMaybe (updated $ _ghci_status g) $ \case
         Status_ExecutionFailed -> Just True
         Status_ExecutionSucceeded -> Just False
@@ -154,7 +135,7 @@ testExprNotFound
   -> TestWorkflow t m
 testExprNotFound cmd = Workflow $ do
   liftIO $ putStrLn "testExprNotFound"
-  g <- ghciInterruptible cmd $ Just "notTheFunctionYoureLookingFor"
+  g <- ghciWatch cmd $ Just "notTheFunctionYoureLookingFor"
   let exception = fforMaybe (updated $ _ghci_status g) $ \case
           Status_ExecutionFailed -> Just True
           Status_ExecutionSucceeded -> Just False
@@ -177,7 +158,7 @@ testExprFinished
   -> TestWorkflow t m
 testExprFinished cmd = Workflow $ do
   liftIO $ putStrLn "testExprFinished"
-  g <- ghciInterruptible cmd $ Just "done"
+  g <- ghciWatch cmd $ Just "done"
   let done = fforMaybe (updated $ _ghci_status g) $ \case
           Status_ExecutionFailed -> Just False
           Status_ExecutionSucceeded -> Just True
@@ -196,9 +177,9 @@ watchAndReloadTest = withSystemTempDirectory "reflex-ghci-test" $ \p -> do
   P.callProcess "cp" ["-r", src <> "/tests/lib-pkg-err", p]
   let cmd = (P.proc "cabal" ["repl"])
         { P.cwd = Just (p <> "/lib-pkg-err") }
-  withCurrentDirectory p $ mainWidget $ do
+  withCurrentDirectory p $ runHeadlessApp $ do
     liftIO $ putStrLn $ "Running main widget"
-    g <- ghciInterruptible cmd Nothing
+    g <- ghciWatch cmd Nothing
     liftIO $ putStrLn $ "Started ghci"
     performEvent_ $ ffor (_ghci_moduleOut g) $ liftIO . print
     performEvent_ $ ffor (_ghci_moduleErr g) $ liftIO . print
@@ -232,10 +213,10 @@ testModuleLoadFailed
      , MonadHold t m
      )
   => P.CreateProcess
-  -> VtyWidget t m (Event t ExitStatus)
+  -> m (Event t ExitStatus)
 testModuleLoadFailed cmd = do
   liftIO $ putStrLn "testModuleLoadFailed"
-  g <- ghciInterruptible cmd Nothing
+  g <- ghciWatch cmd Nothing
   let loaded = fforMaybe (updated $ _ghci_status g) $ \case
         Status_LoadSucceeded -> Just False
         Status_LoadFailed -> Just True

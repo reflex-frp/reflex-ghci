@@ -61,18 +61,24 @@ executable reflex-ghci
 
 test-suite test
   type: exitcode-stdio-1.0
-  main-is: tests/test.hs
+  main-is: test.hs
+  hs-source-dirs: tests
   build-depends:
       base
     , bytestring
+    , dependent-sum
     , directory
+    , mtl
+    , primitive
     , process
+    , ref-tf
     , reflex
     , reflex-ghci
     , reflex-process
     , reflex-vty
     , temporary
     , text
+  other-modules: Headless
   ghc-options: -threaded -rtsopts
   default-language: Haskell2010
 
