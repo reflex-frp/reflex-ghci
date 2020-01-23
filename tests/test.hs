@@ -51,7 +51,6 @@ ghciInterruptible cmd mexpr = do
 main :: IO ()
 main = do
   src <- getCurrentDirectory
-  liftIO $ putStrLn src
   let cmd path = (P.proc "cabal" ["repl"]) { P.cwd = Just $ src <> path }
   putStrLn "Testing lib-pkg"
   testLoadAndExecute $ cmd "/tests/lib-pkg"
