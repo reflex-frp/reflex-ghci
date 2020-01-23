@@ -10,6 +10,7 @@ module Reflex.Vty.GHCi where
 
 import Control.Monad ((<=<), void)
 import Control.Monad.Fix (MonadFix)
+import Control.Monad.IO.Class (liftIO, MonadIO)
 import Data.ByteString (ByteString)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -17,6 +18,8 @@ import Reflex.Network
 import Reflex.Process
 import Reflex.Process.GHCi
 import Reflex.Vty
+import qualified Graphics.Vty.Input as V
+import qualified System.Process as P
 
 -- | Display the overall status of the GHCi session, including exit information in case GHCi has quit
 statusDisplay
@@ -75,7 +78,7 @@ scrollingOutput out = do
 -- | Display the output GHCi produces when it's loading the requested modules (e.g., warnings)
 ghciModuleStatus
   :: ( MonadNodeId m
-     , PostBuild t m 
+     , PostBuild t m
      , MonadHold t m
      , MonadFix m
      )
@@ -118,3 +121,31 @@ ghciPanes g = void $ splitVDrag
   (hRule doubleBoxStyle)
   (ghciModuleStatus g)
   (ghciExecOutput g)
+
+-- | Listen for ctrl-c (and any other provided exit events) and
+-- shutdown the Ghci process upon receipt
+getExitEvent
+  :: ( PerformEvent t m
+     , MonadIO (Performable m)
+     )
+  => Ghci t
+  -> Event t a
+  -> VtyWidget t m (Event t ())
+getExitEvent g externalExitReq = do
+  exitReq <- keyCombo (V.KChar 'c', [V.MCtrl])
+  let exitReqs = leftmost
+        [ g <$ externalExitReq
+        , g <$ exitReq
+        ]
+  shutdown exitReqs
+
+-- | Shut down a given Ghci process
+shutdown
+  :: ( PerformEvent t m
+     , MonadIO (Performable m)
+     )
+  => Event t (Ghci t)
+  -> m (Event t ())
+shutdown exitReqs = do
+  performEvent $ ffor exitReqs $ \g ->
+    liftIO $ P.terminateProcess $ _process_handle $ _ghci_process g

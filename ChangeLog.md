@@ -1,5 +1,11 @@
 # Revision history for reflex-ghci
 
+## Unreleased
+
+* Library: Export `shutdown` and `getExitEvent` to make it easier for library users to cleanly exit
+* Library: Fix regex to capture "Failed, one module loaded"
+* Tests: Add basic test suite, covering module loading, expression execution, exceptions, and filesystem notification-based reloading.
+
 ## 0.1.3.1
 
 * Update for compatibility with `reflex-process`-0.2.0.0.
