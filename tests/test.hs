@@ -2,6 +2,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
 import Headless
 import Reflex
 import Reflex.Process.GHCi
@@ -17,6 +18,10 @@ import qualified System.Process as P
 import System.Directory
 import System.Environment
 import System.IO.Temp
+import System.Which
+
+cabal :: FilePath
+cabal = $(staticWhich "cabal")
 
 data ExitStatus = Succeeded | Failed String
   deriving (Eq, Show)
@@ -34,7 +39,7 @@ data ExitStatus = Succeeded | Failed String
 main :: IO ()
 main = do
   src <- getCurrentDirectory
-  let cmd path = (P.proc "cabal" ["repl"]) { P.cwd = Just $ src <> path }
+  let cmd path = (P.proc cabal ["repl"]) { P.cwd = Just $ src <> path }
   putStrLn "Testing lib-pkg"
   testLoadAndExecute $ cmd "/tests/lib-pkg"
   putStrLn "Testing lib-exe"
@@ -175,7 +180,7 @@ watchAndReloadTest :: IO ()
 watchAndReloadTest = withSystemTempDirectory "reflex-ghci-test" $ \p -> do
   src <- getCurrentDirectory
   P.callProcess "cp" ["-r", src <> "/tests/lib-pkg-err", p]
-  let cmd = (P.proc "cabal" ["repl"])
+  let cmd = (P.proc cabal ["repl"])
         { P.cwd = Just (p <> "/lib-pkg-err") }
   withCurrentDirectory p $ runHeadlessApp $ do
     liftIO $ putStrLn $ "Running main widget"

@@ -78,6 +78,7 @@ test-suite test
     , reflex-vty
     , temporary
     , text
+    , which
   other-modules: Headless
   ghc-options: -threaded -rtsopts
   default-language: Haskell2010
