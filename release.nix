@@ -2,4 +2,4 @@
 }:
 let
   inherit (p.nixpkgs) lib;
-in p.ghc.callCabal2nix "reflex-ghci" ./. {}
+in p.ghc.callPackage ./. {}

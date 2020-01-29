@@ -2,3 +2,5 @@ dist/
 dist-newstyle/
 TAGS
 tags
+tests/*/dist-newstyle/
+tests/*/dist/
