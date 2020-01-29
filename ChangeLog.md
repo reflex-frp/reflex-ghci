@@ -5,6 +5,7 @@
 * Library: Export `shutdown` and `getExitEvent` to make it easier for library users to cleanly exit
 * Library: Fix regex to capture "Failed, one module loaded"
 * Tests: Add basic test suite, covering module loading, expression execution, exceptions, and filesystem notification-based reloading.
+* Library: Reset module output pane scroll position on reload events (like we do with the expression output pane).
 
 ## 0.1.3.1
 
