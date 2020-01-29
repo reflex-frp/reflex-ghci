@@ -3,7 +3,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ConstraintKinds #-}
-module Headless where
+module HeadlessHost where
 
 import Data.Maybe
 import Reflex

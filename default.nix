@@ -2,7 +2,7 @@
 , filepath, fsnotify, mtl, optparse-applicative, primitive, process
 , ref-tf, reflex, reflex-fsnotify, reflex-process, reflex-vty
 , regex-tdfa, stdenv, temporary, text, unix, vty, which
-, cabal-install
+, ghc
 }:
 mkDerivation {
   pname = "reflex-ghci";
@@ -23,7 +23,7 @@ mkDerivation {
     ref-tf reflex reflex-process reflex-vty temporary text which
   ];
   testToolDepends = [
-    cabal-install
+    ghc
   ];
   description = "A GHCi widget library for use in reflex applications";
   license = stdenv.lib.licenses.bsd3;

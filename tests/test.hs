@@ -3,7 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
-import Headless
+import HeadlessHost
 import Reflex
 import Reflex.Process.GHCi
 import Reflex.Vty
@@ -20,8 +20,8 @@ import System.Environment
 import System.IO.Temp
 import System.Which
 
-cabal :: FilePath
-cabal = $(staticWhich "cabal")
+ghciExe :: FilePath
+ghciExe = $(staticWhich "ghci")
 
 data ExitStatus = Succeeded | Failed String
   deriving (Eq, Show)
@@ -37,16 +37,16 @@ data ExitStatus = Succeeded | Failed String
 -- | testExprFinished     | Status_LoadSucceeded  | Status_ExecutionSucceeded |
 
 main :: IO ()
-main = do
+main = withSystemTempDirectory "reflex-ghci-test" $ \tmpdir -> do
   src <- getCurrentDirectory
-  let cmd path = (P.proc cabal ["repl"]) { P.cwd = Just $ src <> path }
+  let cmd path load = P.proc ghciExe ["-i" <> src <> path, load]
   putStrLn "Testing lib-pkg"
-  testLoadAndExecute $ cmd "/tests/lib-pkg"
+  testLoadAndExecute $ cmd "/tests/lib-pkg/src" "MyLib"
   putStrLn "Testing lib-exe"
-  testLoadAndExecute $ cmd "/tests/exe-pkg"
+  testLoadAndExecute $ cmd "/tests/exe-pkg" "Main"
   putStrLn "Testing lib-pkg-err"
   runHeadlessApp $ do
-    out <- testModuleLoadFailed $ cmd $ "/tests/lib-pkg-err"
+    out <- testModuleLoadFailed $ cmd "/tests/lib-pkg-err/src" "MyLib"
     failOnError out
     exitOnSuccess out
   putStrLn "Testing file watching and reloading"
@@ -180,12 +180,9 @@ watchAndReloadTest :: IO ()
 watchAndReloadTest = withSystemTempDirectory "reflex-ghci-test" $ \p -> do
   src <- getCurrentDirectory
   P.callProcess "cp" ["-r", src <> "/tests/lib-pkg-err", p]
-  let cmd = (P.proc cabal ["repl"])
-        { P.cwd = Just (p <> "/lib-pkg-err") }
+  let cmd = P.proc ghciExe ["-i" <> p <> "/lib-pkg-err/src", "MyLib"]
   withCurrentDirectory p $ runHeadlessApp $ do
-    liftIO $ putStrLn $ "Running main widget"
     g <- ghciWatch cmd Nothing
-    liftIO $ putStrLn $ "Started ghci"
     performEvent_ $ ffor (_ghci_moduleOut g) $ liftIO . print
     performEvent_ $ ffor (_ghci_moduleErr g) $ liftIO . print
     performEvent_ $ ffor (updated $ _ghci_status g) $ liftIO . print
