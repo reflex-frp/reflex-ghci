@@ -18,10 +18,9 @@ import qualified System.Process as P
 import System.Directory
 import System.Environment
 import System.IO.Temp
-import System.Which
 
 ghciExe :: FilePath
-ghciExe = $(staticWhich "ghci")
+ghciExe = "ghci"
 
 data ExitStatus = Succeeded | Failed String
   deriving (Eq, Show)
