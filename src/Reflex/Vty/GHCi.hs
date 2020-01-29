@@ -81,6 +81,7 @@ ghciModuleStatus
      , PostBuild t m
      , MonadHold t m
      , MonadFix m
+     , Adjustable t m
      )
   => Ghci t
   -> VtyWidget t m ()
@@ -89,7 +90,9 @@ ghciModuleStatus g = col $ do
   ghciExited <- hold False $ True <$ ghciExit
   fixed 3 $ boxStatic def $ statusDisplay g
   out <- moduleOutput (not <$> ghciExited) g
-  stretch $ scrollableOutput $ current out
+  stretch $ void $
+    networkHold (scrollableOutput $ current out) $ ffor (_ghci_reload g) $
+      const $ scrollableOutput $ current out
 
 -- | Display the output of the expression GHCi is evaluating
 ghciExecOutput
