@@ -20,17 +20,18 @@ This package includes a [reflex-vty](https://github.com/reflex-frp/reflex-vty)-b
 
 ```bash
 $ reflex-ghci -h
-Welcome to reflex-ghci!
+Welcome to reflex-ghci 0.1.4.0
 
-Usage: <interactive> [-c|--command COMMAND] [-e|--expression EXPR]
+Usage: reflex-ghci [-c|--command COMMAND] [-e|--expression EXPR]
   Run a Haskell REPL that automatically reloads when source files change.
 
 Available options:
   -c,--command COMMAND     The ghci/cabal repl command to
-                           run (default: "cabal repl")
+                           run (default: "cabal repl --repl-options=-Wall")
   -e,--expression EXPR     The optional expression to evaluate once modules have
-                           successfully loaded (default: no expression)
+                           successfully loaded
   -h,--help                Show this help text
+
 ```
 
 Acknowledgements
