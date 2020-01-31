@@ -1,6 +1,6 @@
 # Revision history for reflex-ghci
 
-## Unreleased
+## 0.1.4.0
 
 * Library: Export `shutdown` and `getExitEvent` to make it easier for library users to cleanly exit
 * Library: Fix regex to capture "Failed, one module loaded"
