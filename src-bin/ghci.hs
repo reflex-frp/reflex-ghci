@@ -5,12 +5,13 @@ import Reflex.Vty.GHCi
 
 import Control.Concurrent (threadDelay)
 import Control.Monad.IO.Class (liftIO)
-import qualified Graphics.Vty.Input as V
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
-import System.Process (shell, terminateProcess)
-
+import Data.Version (showVersion)
+import qualified Graphics.Vty.Input as V
 import Options.Applicative
+import Paths_reflex_ghci (version)
+import System.Process (shell, terminateProcess)
 
 data GhciArg = GhciArg
   { _ghciArg_replCommand :: String
@@ -39,7 +40,8 @@ main = do
   let opts = info (ghciArg <**> helper) $ mconcat
         [ fullDesc
         , progDesc "Run a Haskell REPL that automatically reloads when source files change."
-        , header "Welcome to reflex-ghci!"
+        , header $ "Welcome to reflex-ghci " <>
+            showVersion version
         ]
   GhciArg { _ghciArg_replCommand = cmd, _ghciArg_execCommand = expr } <- execParser opts
   mainWidget $ do
