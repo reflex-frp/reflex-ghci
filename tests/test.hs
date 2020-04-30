@@ -3,8 +3,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
-import HeadlessHost
 import Reflex
+import Reflex.Host.Headless
 import Reflex.Process.GHCi
 import Reflex.Vty
 import Reflex.Vty.GHCi
