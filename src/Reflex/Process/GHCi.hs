@@ -49,10 +49,12 @@ ghci
   -- ^ Command to run to enter GHCi
   -> Maybe ByteString
   -- ^ Expression to evaluate whenever GHCi successfully loads modules
+  -> [ByteString]
+  -- ^ GHCI options to set on first reload
   -> Event t ()
   -- ^ Ask GHCi to reload
   -> m (Ghci t)
-ghci cmd mexpr reloadReq = do
+ghci cmd mexpr ghciOpts reloadReq = do
   -- Run the process and feed it some input:
   rec proc <- createProcess cmd $ ProcessConfig
         { _processConfig_stdin = leftmost
@@ -63,14 +65,14 @@ ghci cmd mexpr reloadReq = do
                 _ -> Nothing
             -- On first load, set the prompt
             , let f old new = if old == Status_Initializing && new == Status_Loading
-                    then Just $ C8.intercalate "\n"
+                    then Just $ C8.intercalate "\n" $
                       [ "Prelude.putStrLn \"Initialized. Setting up reflex-ghci...\""
                       , ":set prompt ..."
                       , ":set -fno-break-on-exception"
                       , ":set -fno-break-on-error"
-                      , ":set -fdiagnostics-color=always"
-                      , ":set prompt \"\""
-                      , "Prelude.putStrLn \"\""
+                      , ":set prompt \"\""] <>
+                      ghciOpts <>
+                      [ "Prelude.putStrLn \"\""
                       , ":set prompt " <> prompt
                       , ":r"
                       ]
@@ -171,9 +173,10 @@ ghciWatch
      , MonadHold t m
      )
   => P.CreateProcess
+  -> [ByteString]
   -> Maybe ByteString
   -> m (Ghci t)
-ghciWatch p mexec = do
+ghciWatch p ghciOpts mexec = do
   -- Get the current directory so we can observe changes in it
   dir <- liftIO getCurrentDirectory
 
@@ -194,7 +197,7 @@ ghciWatch p mexec = do
   batchedFsEvents <- batchOccurrences 0.1 fsEvents
 
   -- Call GHCi and request a reload every time the files we're watching change
-  ghci p mexec $ () <$ batchedFsEvents
+  ghci p mexec ghciOpts $ () <$ batchedFsEvents
   where
     noDebounce :: FS.WatchConfig -> FS.WatchConfig
     noDebounce cfg = cfg { FS.confDebounce = FS.NoDebounce }
