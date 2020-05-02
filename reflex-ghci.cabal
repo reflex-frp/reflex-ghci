@@ -48,6 +48,7 @@ executable reflex-ghci
   main-is: ghci.hs
   build-depends:
       base
+    , bytestring >= 0.10 && < 0.11
     , optparse-applicative >= 0.14.0 && < 0.16
     , process
     , reflex
