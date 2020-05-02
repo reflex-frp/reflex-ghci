@@ -68,6 +68,7 @@ ghci cmd mexpr reloadReq = do
                       , ":set prompt ..."
                       , ":set -fno-break-on-exception"
                       , ":set -fno-break-on-error"
+                      , ":set -fdiagnostics-color=always"
                       , ":set prompt \"\""
                       , "Prelude.putStrLn \"\""
                       , ":set prompt " <> prompt
