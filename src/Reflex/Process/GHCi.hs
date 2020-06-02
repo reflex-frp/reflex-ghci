@@ -20,7 +20,7 @@ module Reflex.Process.GHCi
 
 import Reflex
 import Reflex.FSNotify (watchDirectoryTree)
-import Reflex.Process (ProcessConfig(..), Process(..), createProcess)
+import Reflex.Process (ProcessConfig(..), Process(..), SendPipe(..), createProcess)
 
 import Control.Monad ((<=<))
 import Control.Monad.Fix (MonadFix)
@@ -55,7 +55,7 @@ ghci
 ghci cmd mexpr reloadReq = do
   -- Run the process and feed it some input:
   rec proc <- createProcess cmd $ ProcessConfig
-        { _processConfig_stdin = leftmost
+        { _processConfig_stdin = SendPipe_Message . (<> "\n") <$> leftmost
             [ reload
             -- Execute some expression if GHCi is ready to receive it
             , fforMaybe (updated status) $ \case
