@@ -190,8 +190,8 @@ watchAndReloadTest = withSystemTempDirectory "reflex-ghci-test" $ \p -> do
           Status_LoadFailed -> Just ()
           _ -> Nothing
 
-    performEvent_ $ ffor loadFailed $ \_ -> liftIO $ do
-      threadDelay 1000000 -- If we respond too quickly, fsnotify won't deliver the change.
+    loadFailedDelayed <- delay 1 loadFailed -- If we respond too quickly, fsnotify won't deliver the change.
+    performEvent_ $ ffor loadFailedDelayed $ \_ -> liftIO $ do
       putStrLn "copying fixed file"
       copyFile (src <> "/tests/lib-pkg/src/MyLib/Three.hs")
                (p <> "/lib-pkg-err/src/MyLib/Three.hs")
