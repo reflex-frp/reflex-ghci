@@ -20,7 +20,7 @@ executable tests
   main-is:             Main.hs
   -- other-modules:
   -- other-extensions:
-  build-depends:       base >=4.12 && <4.13
+  build-depends:       base
                      , reflex-ghci
   -- hs-source-dirs:
   default-language:    Haskell2010
