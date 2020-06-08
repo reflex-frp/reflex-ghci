@@ -2,7 +2,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell #-}
+
 import HeadlessHost
 import Reflex
 import Reflex.Process.GHCi
@@ -18,6 +18,7 @@ import qualified System.Process as P
 import System.Directory
 import System.Environment
 import System.IO.Temp
+import Control.Concurrent
 
 ghciExe :: FilePath
 ghciExe = "ghci"
@@ -190,11 +191,10 @@ watchAndReloadTest = withSystemTempDirectory "reflex-ghci-test" $ \p -> do
           _ -> Nothing
     numFailures :: Dynamic t Int <- count loadFailed
     performEvent_ $ ffor loadFailed $ \_ -> liftIO $ do
+      threadDelay 1000000 -- If we respond too quickly, fsnotify won't deliver the change.
       putStrLn "copying fixed file"
-      P.callProcess "cp"
-        [ src <> "/tests/lib-pkg/src/MyLib/Three.hs"
-        , p <> "/lib-pkg-err/src/MyLib/Three.hs"
-        ]
+      copyFile (src <> "/tests/lib-pkg/src/MyLib/Three.hs")
+               (p <> "/lib-pkg-err/src/MyLib/Three.hs")
     let loadSucceeded = fforMaybe (updated $ _ghci_status g) $ \case
           Status_LoadSucceeded -> Just ()
           _ -> Nothing
