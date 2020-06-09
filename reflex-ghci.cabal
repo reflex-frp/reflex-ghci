@@ -1,6 +1,6 @@
 cabal-version: 2.4
 name: reflex-ghci
-version: 0.1.4.0
+version: 0.1.4.1
 synopsis: A GHCi widget library for use in reflex applications
 description:
   Run GHCi from within a reflex application and interact with it using a functional-reactive interface.
@@ -52,7 +52,7 @@ executable reflex-ghci
       base
     , optparse-applicative >= 0.14.0 && < 0.16
     , process
-    , reflex
+    , reflex >= 0.7.1.0
     , reflex-ghci
     , reflex-vty
     , reflex-process
