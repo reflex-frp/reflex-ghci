@@ -18,7 +18,6 @@ import qualified System.Process as P
 import System.Directory
 import System.Environment
 import System.IO.Temp
-import Control.Concurrent
 
 ghciExe :: FilePath
 ghciExe = "ghci"
