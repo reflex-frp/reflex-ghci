@@ -2,7 +2,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell #-}
+
 import Reflex
 import Reflex.Host.Headless
 import Reflex.Process.GHCi
@@ -18,6 +18,7 @@ import qualified System.Process as P
 import System.Directory
 import System.Environment
 import System.IO.Temp
+import Control.Concurrent
 
 ghciExe :: FilePath
 ghciExe = "ghci"
@@ -188,13 +189,14 @@ watchAndReloadTest = withSystemTempDirectory "reflex-ghci-test" $ \p -> do
     let loadFailed = fforMaybe (updated $ _ghci_status g) $ \case
           Status_LoadFailed -> Just ()
           _ -> Nothing
-    numFailures :: Dynamic t Int <- count loadFailed
-    performEvent_ $ ffor loadFailed $ \_ -> liftIO $ do
+
+    loadFailedDelayed <- delay 1 loadFailed -- If we respond too quickly, fsnotify won't deliver the change.
+    performEvent_ $ ffor loadFailedDelayed $ \_ -> liftIO $ do
       putStrLn "copying fixed file"
-      P.callProcess "cp"
-        [ src <> "/tests/lib-pkg/src/MyLib/Three.hs"
-        , p <> "/lib-pkg-err/src/MyLib/Three.hs"
-        ]
+      copyFile (src <> "/tests/lib-pkg/src/MyLib/Three.hs")
+               (p <> "/lib-pkg-err/src/MyLib/Three.hs")
+
+    numFailures :: Dynamic t Int <- count loadFailed
     let loadSucceeded = fforMaybe (updated $ _ghci_status g) $ \case
           Status_LoadSucceeded -> Just ()
           _ -> Nothing
@@ -202,7 +204,7 @@ watchAndReloadTest = withSystemTempDirectory "reflex-ghci-test" $ \p -> do
       if x > 1
         then Just $ error "Too many failures."
         else Nothing
-    return loadSucceeded
+    return $ gate ((>= 1) <$> current numFailures) loadSucceeded
 
 testModuleLoadFailed
   :: ( MonadIO m
