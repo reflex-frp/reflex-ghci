@@ -1,4 +1,4 @@
-cabal-version: >=1.10
+cabal-version: 2.4
 name: reflex-ghci
 version: 0.1.4.0
 synopsis: A GHCi widget library for use in reflex applications
@@ -8,7 +8,7 @@ description:
   <<https://i.imgur.com/5y61Qx7.png>>
   .
 bug-reports: https://github.com/reflex-frp/reflex-ghci/issues
-license: BSD3
+license: BSD-3-Clause
 license-file: LICENSE
 author: Obsidian Systems LLC
 maintainer: maintainer@obsidian.systems
@@ -18,6 +18,8 @@ build-type: Simple
 extra-source-files: ChangeLog.md
                     README.md
                     screenshot.png
+                    tests/**/*.hs
+                    tests/**/*.cabal
 tested-with: GHC ==8.6.5
 
 library
@@ -56,6 +58,7 @@ executable reflex-ghci
     , reflex-process
     , text
     , vty
+  autogen-modules: Paths_reflex_ghci
   other-modules: Paths_reflex_ghci
   ghc-options: -threaded -rtsopts
   default-language: Haskell2010
