@@ -3,21 +3,18 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-import Reflex
-import Reflex.Host.Headless
-import Reflex.Process.GHCi
-import Reflex.Vty
-import Reflex.Vty.GHCi
-import Reflex.Workflow
 
-import Control.Monad (void)
 import Control.Monad.Fix (MonadFix)
-import Control.Monad.IO.Class (liftIO, MonadIO)
-import Data.ByteString (ByteString)
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Reflex
+import Reflex.Host.Headless (runHeadlessApp)
+import Reflex.Workflow (Workflow (..), workflow)
+import System.Directory (copyFile, getCurrentDirectory, withCurrentDirectory)
+import System.IO.Temp (withSystemTempDirectory)
 import qualified System.Process as P
-import System.Directory
-import System.Environment
-import System.IO.Temp
+
+import Reflex.Process.GHCi
+import Reflex.Vty.GHCi
 
 ghciExe :: FilePath
 ghciExe = "ghci"
@@ -36,7 +33,7 @@ data ExitStatus = Succeeded | Failed String
 -- | testExprFinished     | Status_LoadSucceeded  | Status_ExecutionSucceeded |
 
 main :: IO ()
-main = withSystemTempDirectory "reflex-ghci-test" $ \tmpdir -> do
+main = withSystemTempDirectory "reflex-ghci-test" $ \_ -> do
   src <- getCurrentDirectory
   let cmd path load = P.proc ghciExe ["-i" <> src <> path, load]
   putStrLn "Testing lib-pkg"
@@ -98,9 +95,9 @@ testModuleLoad cmd = Workflow $ do
         Status_LoadSucceeded -> Just True
         Status_LoadFailed -> Just False
         _ -> Nothing
-  void $ shutdown $ g <$ loaded
-  return ( Failed . show <$> ffilter not loaded
-         , testExprErr cmd <$ ffilter id loaded
+  done <- afterShutdown g loaded
+  return ( Failed . show <$> ffilter not done
+         , testExprErr cmd <$ ffilter id done
          )
 
 testExprErr
@@ -121,9 +118,9 @@ testExprErr cmd = Workflow $ do
         Status_ExecutionFailed -> Just True
         Status_ExecutionSucceeded -> Just False
         _ -> Nothing
-  void $ shutdown $ g <$ exception
-  return ( Failed . show <$> ffilter not exception
-         , testExprNotFound cmd <$ ffilter id exception
+  done <- afterShutdown g exception
+  return ( Failed . show <$> ffilter not done
+         , testExprNotFound cmd <$ ffilter id done
          )
 
 testExprNotFound
@@ -141,12 +138,12 @@ testExprNotFound cmd = Workflow $ do
   liftIO $ putStrLn "testExprNotFound"
   g <- ghciWatch cmd $ Just "notTheFunctionYoureLookingFor"
   let exception = fforMaybe (updated $ _ghci_status g) $ \case
-          Status_ExecutionFailed -> Just True
-          Status_ExecutionSucceeded -> Just False
-          _ -> Nothing
-  void $ shutdown $ g <$ exception
-  return ( Failed . show <$> ffilter not exception
-         , testExprFinished cmd <$ ffilter id exception
+        Status_ExecutionFailed -> Just True
+        Status_ExecutionSucceeded -> Just False
+        _ -> Nothing
+  done <- afterShutdown g exception
+  return ( Failed . show <$> ffilter not done
+         , testExprFinished cmd <$ ffilter id done
          )
 
 testExprFinished
@@ -163,11 +160,11 @@ testExprFinished
 testExprFinished cmd = Workflow $ do
   liftIO $ putStrLn "testExprFinished"
   g <- ghciWatch cmd $ Just "done"
-  let done = fforMaybe (updated $ _ghci_status g) $ \case
-          Status_ExecutionFailed -> Just False
-          Status_ExecutionSucceeded -> Just True
-          _ -> Nothing
-  void $ shutdown $ g <$ done
+  let finished = fforMaybe (updated $ _ghci_status g) $ \case
+        Status_ExecutionFailed -> Just False
+        Status_ExecutionSucceeded -> Just True
+        _ -> Nothing
+  done <- afterShutdown g finished
   return ( outcome done
          , never
          )
@@ -203,7 +200,8 @@ watchAndReloadTest = withSystemTempDirectory "reflex-ghci-test" $ \p -> do
       if x > 1
         then Just $ error "Too many failures."
         else Nothing
-    return $ gate ((>= 1) <$> current numFailures) loadSucceeded
+
+    afterShutdown g $ gate ((>= 1) <$> current numFailures) loadSucceeded
 
 testModuleLoadFailed
   :: ( MonadIO m
@@ -223,8 +221,15 @@ testModuleLoadFailed cmd = do
         Status_LoadSucceeded -> Just False
         Status_LoadFailed -> Just True
         _ -> Nothing
-  void $ shutdown $ g <$ loaded
-  return $ ffor loaded $ \x ->
+  done <- afterShutdown g loaded
+  return $ ffor done $ \x ->
     if x
       then Succeeded
       else Failed "testModuleFailed: lib-pkg-err shouldn't have loaded"
+
+-- | Utility to help use an 'Event' for stopping the network, but not until the shutdown is complete.
+afterShutdown :: (PerformEvent t m, MonadIO (Performable m), MonadHold t m) => Ghci t -> Event t b -> m (Event t b)
+afterShutdown g e = do
+  eValue <- hold Nothing $ Just <$> e
+  after <- shutdown $ g <$ e
+  pure $ fmapMaybe id $ tag eValue after
