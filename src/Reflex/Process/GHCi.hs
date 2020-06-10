@@ -20,7 +20,7 @@ module Reflex.Process.GHCi
 
 import Reflex
 import Reflex.FSNotify (watchDirectoryTree)
-import Reflex.Process (ProcessConfig(..), Process(..), createProcess)
+import Reflex.Process (ProcessConfig(..), Process(..), SendPipe(..), createProcess)
 
 import Control.Monad ((<=<))
 import Control.Monad.Fix (MonadFix)
@@ -55,7 +55,7 @@ ghci
 ghci cmd mexpr reloadReq = do
   -- Run the process and feed it some input:
   rec proc <- createProcess cmd $ ProcessConfig
-        { _processConfig_stdin = leftmost
+        { _processConfig_stdin = SendPipe_Message . (<> "\n") <$> leftmost
             [ reload
             -- Execute some expression if GHCi is ready to receive it
             , fforMaybe (updated status) $ \case
@@ -91,7 +91,7 @@ ghci cmd mexpr reloadReq = do
 
      -- Only interrupt when there's a file change and we're ready and not in an idle state
       let interruptible s = s `elem` [Status_Loading, Status_Executing]
-          requestInterrupt = gate (interruptible <$> current status) $ (() <$ reloadReq)
+          requestInterrupt = gate (interruptible <$> current status) (() <$ reloadReq)
 
       -- Define some Regex patterns to use to determine GHCi's state based on output
       let okModulesLoaded = "Ok.*module.*loaded." :: ByteString
@@ -114,7 +114,7 @@ ghci cmd mexpr reloadReq = do
           else Nothing
         , const Status_Loading <$ reload
         , ffor (updated output) $ \out -> case reverse (C8.lines out) of
-            (lastLine:expectedMessage:_)
+            lastLine:expectedMessage:_
               | lastLine == prompt && expectedMessage Regex.=~ okModulesLoaded -> const Status_LoadSucceeded
               | lastLine == prompt && expectedMessage Regex.=~ failedNoModulesLoaded -> const Status_LoadFailed
               | lastLine == prompt -> \case
@@ -127,7 +127,7 @@ ghci cmd mexpr reloadReq = do
                     Just _ -> Status_Executing
                   s -> s
 
-            (lastLine:_)
+            lastLine:_
               | lastLine Regex.=~ ghciVersionMessage -> const Status_Loading
             _ -> id
         ]
