@@ -1,5 +1,13 @@
 # Revision history for reflex-ghci
 
+## 0.1.4.1
+
+* Library: Require at least version 0.7.1 of `reflex`.
+* Library: Require at least version 0.3 of `reflex-process`.
+* Library: Expand version bounds for `regex-tdfa` and `vty`.
+* Tests: Include test fixtures in sdist.
+* Tests: Fix some bugs.
+
 ## 0.1.4.0
 
 * Library: Export `shutdown` and `getExitEvent` to make it easier for library users to cleanly exit
