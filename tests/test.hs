@@ -33,7 +33,7 @@ data ExitStatus = Succeeded | Failed String
 -- | testExprFinished     | Status_LoadSucceeded  | Status_ExecutionSucceeded |
 
 main :: IO ()
-main = withSystemTempDirectory "reflex-ghci-test" $ \_ -> do
+main = do
   src <- getCurrentDirectory
   let cmd path load = P.proc ghciExe ["-i" <> src <> path, load]
   putStrLn "Testing lib-pkg"
