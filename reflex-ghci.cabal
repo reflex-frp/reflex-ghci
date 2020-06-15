@@ -3,10 +3,9 @@ name: reflex-ghci
 version: 0.1.4.1
 synopsis: A GHCi widget library for use in reflex applications
 description:
-  Run GHCi from within a reflex application and interact with it using a functional-reactive interface.
+  Run GHCi from within a Reflex FRP (<https://reflex-frp.org>) application and interact with it using a functional reactive interface.
   .
   <<https://i.imgur.com/5y61Qx7.png>>
-  .
 bug-reports: https://github.com/reflex-frp/reflex-ghci/issues
 license: BSD-3-Clause
 license-file: LICENSE
