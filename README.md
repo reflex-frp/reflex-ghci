@@ -4,7 +4,7 @@
 
 Run GHCi from within a [Reflex FRP](https://reflex-frp.org) application and interact with it using a functional reactive interface.
 
-![screenshot](screenshot.png)
+![Screenshot](https://i.imgur.com/5y61Qx7.png)
 
 ## Library
 

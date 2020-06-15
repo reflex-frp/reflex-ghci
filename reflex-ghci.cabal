@@ -16,7 +16,6 @@ category: FRP, Development,
 build-type: Simple
 extra-source-files: ChangeLog.md
                     README.md
-                    screenshot.png
                     tests/**/*.hs
                     tests/**/*.cabal
 tested-with: GHC ==8.6.5
