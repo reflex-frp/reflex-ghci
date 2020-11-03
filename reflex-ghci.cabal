@@ -18,7 +18,7 @@ extra-source-files: ChangeLog.md
                     README.md
                     tests/**/*.hs
                     tests/**/*.cabal
-tested-with: GHC ==8.6.5
+tested-with: GHC ==8.6.5 || ==8.8.4
 
 library
   exposed-modules:
