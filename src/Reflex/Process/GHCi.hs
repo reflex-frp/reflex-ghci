@@ -104,7 +104,7 @@ ghci cmd mexpr reloadReq = do
           -- We need to know when ghci is initialized enough that it won't die when
           -- it receives an interrupt. We wait to see the version line in the output as
           -- a proxy for GHCi's readiness to be interrupted
-          ghciVersionMessage = "GHCi, version.*: http://www.haskell.org/ghc/" :: ByteString
+          ghciVersionMessage = "GHCi, version.*: https?://www.haskell.org/ghc/" :: ByteString
 
 
       -- Inspect the output and determine what state GHCi is in

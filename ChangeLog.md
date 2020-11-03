@@ -3,6 +3,7 @@
 ## 0.1.4.2
 
 * Tests: Ensure proper shutdown.
+* Tests: Fix tests for GHC 8.8.4
 
 ## 0.1.4.1
 
