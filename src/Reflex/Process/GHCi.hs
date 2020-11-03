@@ -120,6 +120,9 @@ ghci cmd mexpr reloadReq = do
               | lastLine == prompt && expectedMessage Regex.=~ failedNoModulesLoaded -> const Status_LoadFailed
               | lastLine == prompt -> \case
                   Status_Executing -> Status_ExecutionSucceeded
+                  Status_LoadSucceeded -> case mexpr of
+                    Just _ -> Status_ExecutionSucceeded
+                    Nothing -> Status_LoadSucceeded
                   s -> s
               | lastLine Regex.=~ ghciVersionMessage -> const Status_Loading
               | otherwise -> \case
@@ -186,6 +189,7 @@ ghciWatch p mexec = do
   -- on that, but we'll need to parse that output.
 
   -- On macOS, use the polling backend due to https://github.com/luite/hfsevents/issues/13
+  -- TODO check if this is an issue with nixpkgs
   let fsConfig = noDebounce $ FS.defaultConfig
         { FS.confUsePolling = Sys.os == "darwin"
         , FS.confPollInterval = 250000
@@ -197,8 +201,6 @@ ghciWatch p mexec = do
   -- user-level change. For example, saving a file in vim results in an event claiming
   -- the file was removed followed almost immediately by an event adding the file
   batchedFsEvents <- batchOccurrences 0.1 fsEvents
-
-  performEvent_ $ ffor batchedFsEvents $ liftIO . print
 
   -- Call GHCi and request a reload every time the files we're watching change
   ghci p mexec $ () <$ batchedFsEvents
