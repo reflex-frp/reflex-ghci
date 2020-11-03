@@ -1,5 +1,9 @@
 # Revision history for reflex-ghci
 
+## 0.1.4.2
+
+* Tests: Ensure proper shutdown.
+
 ## 0.1.4.1
 
 * Library: Require at least version 0.7.1 of `reflex`.
