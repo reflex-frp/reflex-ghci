@@ -31,6 +31,7 @@ import Data.String (IsString)
 import System.Directory (getCurrentDirectory)
 import qualified System.FSNotify as FS
 import System.FilePath.Posix (takeExtension)
+import qualified System.Info as Sys
 import System.Posix.Signals (sigINT)
 import qualified System.Process as P
 import qualified Text.Regex.TDFA as Regex ((=~))
@@ -184,13 +185,20 @@ ghciWatch p mexec = do
   -- We could use ":show modules" to see which hs files are loaded and determine what to do based
   -- on that, but we'll need to parse that output.
 
-  fsEvents <- watchDirectoryTree (noDebounce FS.defaultConfig) (dir <$ pb) $ \e ->
+  -- On macOS, use the polling backend due to https://github.com/luite/hfsevents/issues/13
+  let fsConfig = noDebounce $ FS.defaultConfig
+        { FS.confUsePolling = Sys.os == "darwin"
+        , FS.confPollInterval = 250000
+        }
+  fsEvents <- watchDirectoryTree fsConfig (dir <$ pb) $ \e ->
     takeExtension (FS.eventPath e) `elem` [".hs", ".lhs"]
 
   -- Events are batched because otherwise we'd get several updates corresponding to one
   -- user-level change. For example, saving a file in vim results in an event claiming
   -- the file was removed followed almost immediately by an event adding the file
   batchedFsEvents <- batchOccurrences 0.1 fsEvents
+
+  performEvent_ $ ffor batchedFsEvents $ liftIO . print
 
   -- Call GHCi and request a reload every time the files we're watching change
   ghci p mexec $ () <$ batchedFsEvents
