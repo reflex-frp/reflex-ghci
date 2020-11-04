@@ -233,3 +233,11 @@ afterShutdown g e = do
   eValue <- hold Nothing $ Just <$> e
   after <- shutdown $ g <$ e
   pure $ fmapMaybe id $ tag eValue after
+
+debug :: (Reflex t, PerformEvent t m, MonadIO (Performable m)) => Ghci t -> m ()
+debug g = do
+  performEvent_ $ ffor (updated $ _ghci_status g) $ liftIO . print
+  performEvent_ $ ffor (_ghci_moduleOut g) $ liftIO . print
+  performEvent_ $ ffor (_ghci_moduleErr g) $ liftIO . print
+  performEvent_ $ ffor (_ghci_execOut g) $ liftIO . print
+  performEvent_ $ ffor (_ghci_execErr g) $ liftIO . print
