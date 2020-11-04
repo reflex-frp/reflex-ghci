@@ -132,7 +132,7 @@ ghci cmd mexpr reloadReq = do
               | lastLine == prompt && expectedMessage Regex.=~ okModulesLoaded -> const Status_LoadSucceeded
               | lastLine == prompt && expectedMessage Regex.=~ failedNoModulesLoaded -> const Status_LoadFailed
               | lastLine == prompt && expectedMessage == msgExprStarted -> const Status_Executing
-              | lastLine == prompt && expectedMessage Regex.=~ msgExprFinished -> const Status_ExecutionSucceeded
+              | lastLine Regex.=~ (prompt :: String) && expectedMessage Regex.=~ msgExprFinished -> const Status_ExecutionSucceeded
               | lastLine Regex.=~ ghciVersionMessage -> const Status_Loading
               | otherwise -> \case
                   Status_LoadSucceeded -> case mexpr of
