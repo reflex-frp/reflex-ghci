@@ -9,7 +9,7 @@ jobs:
     strategy:
       matrix:
         ghc: ['8.6.5', '8.8.4']
-        os: ['ubuntu-latest']
+        os: ['ubuntu-latest', 'macos-latest']
     steps:
     - uses: actions/checkout@v2
     - uses: actions/setup-haskell@v1
@@ -35,6 +35,7 @@ jobs:
     - name: Install haskell dependencies
       run: |
         cabal update
+        cabal install text-icu --extra-lib-dirs=/usr/local/opt/icu4c/lib --extra-include-dirs=/usr/local/opt/icu4c/include
         cabal build --only-dependencies --enable-tests --enable-benchmarks
     - name: Build
       run: cabal build --enable-tests --enable-benchmarks all
