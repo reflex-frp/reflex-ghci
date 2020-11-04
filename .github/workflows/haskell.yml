@@ -29,7 +29,10 @@ jobs:
           ${{ runner.os }}-build-
           ${{ runner.os }}-
 
-    - name: Install dependencies
+    - name: Install system dependencies
+      run: brew install icu4c
+      if: matrix.os == 'macos-latest'
+    - name: Install haskell dependencies
       run: |
         cabal update
         cabal build --only-dependencies --enable-tests --enable-benchmarks
