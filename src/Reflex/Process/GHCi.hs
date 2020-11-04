@@ -120,6 +120,9 @@ ghci cmd mexpr reloadReq = do
               | lastLine == prompt && expectedMessage Regex.=~ failedNoModulesLoaded -> const Status_LoadFailed
               | lastLine == prompt -> \case
                   Status_Executing -> Status_ExecutionSucceeded
+                  -- This somewhat specious-looking code handles the case where the execution of the expression
+                  -- happens quickly enough that we don't have time to separately register it and the subsequent
+                  -- return to the prompt after successful completion:
                   Status_LoadSucceeded -> case mexpr of
                     Just _ -> Status_ExecutionSucceeded
                     Nothing -> Status_LoadSucceeded
