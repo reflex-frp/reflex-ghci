@@ -1,6 +1,6 @@
 cabal-version: 2.4
 name: reflex-ghci
-version: 0.1.4.2
+version: 0.1.5.0
 synopsis: A GHCi widget library for use in reflex applications
 description:
   Run GHCi from within a Reflex FRP (<https://reflex-frp.org>) application and interact with it using a functional reactive interface.

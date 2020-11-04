@@ -31,9 +31,13 @@ import Data.String (IsString)
 import System.Directory (getCurrentDirectory)
 import qualified System.FSNotify as FS
 import System.FilePath.Posix (takeExtension)
+import qualified System.Info as Sys
 import System.Posix.Signals (sigINT)
 import qualified System.Process as P
 import qualified Text.Regex.TDFA as Regex ((=~))
+
+msg :: (IsString a, Semigroup a) => a -> a
+msg = (<>) "<reflex-ghci>: "
 
 -- | Runs a GHCi process and reloads it whenever the provided event fires
 ghci
@@ -54,22 +58,33 @@ ghci
   -> m (Ghci t)
 ghci cmd mexpr reloadReq = do
   -- Run the process and feed it some input:
+  let msgInit = msg "performing setup..."
+      msgExprStarted = msg "evaluating expression..."
+      msgExprFinished = msg "expression evaluation ended."
+      putMsgLn :: ByteString -> ByteString
+      putMsgLn m = "Prelude.putStrLn \"" <> m <> "\"\n"
   rec proc <- createProcess cmd $ ProcessConfig
         { _processConfig_stdin = SendPipe_Message . (<> "\n") <$> leftmost
             [ reload
             -- Execute some expression if GHCi is ready to receive it
             , fforMaybe (updated status) $ \case
-                Status_LoadSucceeded -> mexpr
+                Status_LoadSucceeded -> ffor mexpr $ \expr ->
+                  C8.intercalate "\n"
+                    [ putMsgLn msgExprStarted
+                    , putMsgLn expr
+                    , expr
+                    , putMsgLn msgExprFinished
+                    ]
                 _ -> Nothing
             -- On first load, set the prompt
             , let f old new = if old == Status_Initializing && new == Status_Loading
                     then Just $ C8.intercalate "\n"
-                      [ "Prelude.putStrLn \"Initialized. Setting up reflex-ghci...\""
+                      [ putMsgLn msgInit
                       , ":set prompt ..."
                       , ":set -fno-break-on-exception"
                       , ":set -fno-break-on-error"
                       , ":set prompt \"\""
-                      , "Prelude.putStrLn \"\""
+                      , putMsgLn ""
                       , ":set prompt " <> prompt
                       , ":r"
                       ]
@@ -106,7 +121,6 @@ ghci cmd mexpr reloadReq = do
           -- a proxy for GHCi's readiness to be interrupted
           ghciVersionMessage = "GHCi, version.*: https?://www.haskell.org/ghc/" :: ByteString
 
-
       -- Inspect the output and determine what state GHCi is in
       status :: Dynamic t Status <- holdUniqDyn <=< foldDyn ($) Status_Initializing $ leftmost
         [ fforMaybe (updated errors) $ \err -> if err Regex.=~ exceptionMessage || err Regex.=~ interactiveErrorMessage
@@ -117,9 +131,8 @@ ghci cmd mexpr reloadReq = do
             lastLine:expectedMessage:_
               | lastLine == prompt && expectedMessage Regex.=~ okModulesLoaded -> const Status_LoadSucceeded
               | lastLine == prompt && expectedMessage Regex.=~ failedNoModulesLoaded -> const Status_LoadFailed
-              | lastLine == prompt -> \case
-                  Status_Executing -> Status_ExecutionSucceeded
-                  s -> s
+              | lastLine == prompt && expectedMessage == msgExprStarted -> const Status_Executing
+              | lastLine Regex.=~ (prompt :: String) && expectedMessage Regex.=~ msgExprFinished -> const Status_ExecutionSucceeded
               | lastLine Regex.=~ ghciVersionMessage -> const Status_Loading
               | otherwise -> \case
                   Status_LoadSucceeded -> case mexpr of
@@ -184,7 +197,13 @@ ghciWatch p mexec = do
   -- We could use ":show modules" to see which hs files are loaded and determine what to do based
   -- on that, but we'll need to parse that output.
 
-  fsEvents <- watchDirectoryTree (noDebounce FS.defaultConfig) (dir <$ pb) $ \e ->
+  -- On macOS, use the polling backend due to https://github.com/luite/hfsevents/issues/13
+  -- TODO check if this is an issue with nixpkgs
+  let fsConfig = noDebounce $ FS.defaultConfig
+        { FS.confUsePolling = Sys.os == "darwin"
+        , FS.confPollInterval = 250000
+        }
+  fsEvents <- watchDirectoryTree fsConfig (dir <$ pb) $ \e ->
     takeExtension (FS.eventPath e) `elem` [".hs", ".lhs"]
 
   -- Events are batched because otherwise we'd get several updates corresponding to one

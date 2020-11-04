@@ -29,7 +29,7 @@ jobs:
           ${{ runner.os }}-build-
           ${{ runner.os }}-
 
-    - name: Install dependencies
+    - name: Install haskell dependencies
       run: |
         cabal update
         cabal build --only-dependencies --enable-tests --enable-benchmarks
