@@ -1,4 +1,4 @@
-{ callCabal2nix }:
+{ callCabal2nix, ... }:
 let
   src = builtins.filterSource (path: type: !(builtins.elem (baseNameOf path) [
     "release.nix"
