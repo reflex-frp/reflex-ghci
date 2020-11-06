@@ -1,5 +1,9 @@
 # Revision history for reflex-ghci
 
+## 0.1.5.1
+
+* Extend version bounds to support reflex 0.8
+
 ## 0.1.5.0
 
 * Fix various circumstances under which reflex-ghci would hang due to failure to properly parse GHCi output or failure to detect filesystem changes (the latter particularly on macOS)
