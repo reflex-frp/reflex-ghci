@@ -44,7 +44,7 @@ main = do
             showVersion version
         ]
   GhciArg { _ghciArg_replCommand = cmd, _ghciArg_execCommand = expr } <- execParser opts
-  mainWidget $ do
+  mainWidget $ initManager_ $ do
     exit <- keyCombo (V.KChar 'c', [V.MCtrl])
     g <- ghciWatch (shell cmd) $ T.encodeUtf8 . T.pack <$> expr
     case expr of
