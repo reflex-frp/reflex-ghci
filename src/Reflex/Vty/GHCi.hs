@@ -25,9 +25,12 @@ import qualified System.Process as P
 statusDisplay
   :: ( PostBuild t m
      , MonadHold t m
+     , HasDisplayRegion t m
+     , HasImageWriter t m
+     , HasTheme t m
      )
   => Ghci t
-  -> VtyWidget t m ()
+  -> m ()
 statusDisplay g = do
   pb <- getPostBuild
   text <=< hold "" $ leftmost
@@ -40,17 +43,24 @@ statusDisplay g = do
 -- when there is additional content to view.
 scrollableOutput
   :: ( Reflex t
-     , MonadNodeId m
-     , MonadHold t m
+     , HasDisplayRegion t m
+     , HasFocus t m
+     , HasFocusReader t m
+     , HasImageWriter t m
+     , HasInput t m
+     , HasLayout t m
+     , HasTheme t m
      , MonadFix m
+     , MonadHold t m
+     , MonadNodeId m
      , PostBuild t m
      )
   => Behavior t ByteString
-  -> VtyWidget t m ()
+  -> m ()
 scrollableOutput out = col $ do
   dh <- displayHeight
-  scroll <- stretch $ scrollableText never $ T.decodeUtf8 <$> out
-  fixed 1 $ text $
+  scroll <- tile flex $ scrollableText never $ T.decodeUtf8 <$> out
+  grout (fixed 1) $ text $
     let f h (ix, n) = if n - ix + 1 > h
           then "↓ More ↓"
           else ""
@@ -62,9 +72,13 @@ scrollingOutput
      , Monad m
      , MonadHold t m
      , MonadFix m
+     , HasDisplayRegion t m
+     , HasInput t m
+     , HasImageWriter t m
+     , HasTheme t m
      )
   => Dynamic t ByteString
-  -> VtyWidget t m ()
+  -> m ()
 scrollingOutput out = do
   dh <- displayHeight
   let scrollBy h (ix, n) =
@@ -82,15 +96,22 @@ ghciModuleStatus
      , MonadHold t m
      , MonadFix m
      , Adjustable t m
+     , HasLayout t m
+     , HasImageWriter t m
+     , HasFocusReader t m
+     , HasDisplayRegion t m
+     , HasInput t m
+     , HasTheme t m
+     , HasFocus t m
      )
   => Ghci t
-  -> VtyWidget t m ()
+  -> m ()
 ghciModuleStatus g = col $ do
   let ghciExit = _process_exit $ _ghci_process g
   ghciExited <- hold False $ True <$ ghciExit
-  fixed 3 $ boxStatic def $ statusDisplay g
+  grout (fixed 3) $ boxStatic def $ statusDisplay g
   out <- moduleOutput (not <$> ghciExited) g
-  stretch $ void $
+  tile flex $ void $
     networkHold (scrollableOutput $ current out) $ ffor (_ghci_reload g) $
       const $ scrollableOutput $ current out
 
@@ -99,9 +120,14 @@ ghciExecOutput
   :: ( MonadHold t m
      , MonadFix m
      , Adjustable t m
+     , HasDisplayRegion t m
+     , HasInput t m
+     , HasImageWriter t m
+     , HasTheme t m
+     , HasInput t m
      )
   => Ghci t
-  -> VtyWidget t m ()
+  -> m ()
 ghciExecOutput g = do
   ghciExited <- hold False $ True <$ _process_exit (_ghci_process g)
   out <- execOutput (not <$> ghciExited) g
@@ -117,9 +143,16 @@ ghciPanes
      , MonadNodeId m
      , PostBuild t m
      , Adjustable t m
+     , HasInput t m
+     , HasImageWriter t m
+     , HasFocusReader t m
+     , HasDisplayRegion t m
+     , HasTheme t m
+     , HasLayout t m
+     , HasFocus t m
      )
   => Ghci t
-  -> VtyWidget t m ()
+  -> m ()
 ghciPanes g = void $ splitVDrag
   (hRule doubleBoxStyle)
   (ghciModuleStatus g)
@@ -130,10 +163,11 @@ ghciPanes g = void $ splitVDrag
 getExitEvent
   :: ( PerformEvent t m
      , MonadIO (Performable m)
+     , HasInput t m
      )
   => Ghci t
   -> Event t a
-  -> VtyWidget t m (Event t ())
+  -> m (Event t ())
 getExitEvent g externalExitReq = do
   exitReq <- keyCombo (V.KChar 'c', [V.MCtrl])
   let exitReqs = leftmost

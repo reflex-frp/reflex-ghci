@@ -1,5 +1,9 @@
 # Revision history for reflex-ghci
 
+## 0.1.5.2
+
+* Use reflex-vty 0.2
+
 ## 0.1.5.1
 
 * Extend version bounds to support reflex 0.8
