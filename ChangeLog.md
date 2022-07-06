@@ -1,5 +1,9 @@
 # Revision history for reflex-ghci
 
+## 0.1.5.3
+
+* Loosen version bounds on optparse-applicative and vty
+
 ## 0.1.5.2
 
 * Use reflex-vty 0.2
