@@ -54,6 +54,12 @@ scrollableOutput
      , MonadHold t m
      , MonadNodeId m
      , PostBuild t m
+     , HasDisplayRegion t m
+     , HasFocus t m
+     , HasFocusReader t m
+     , HasImageWriter t m
+     , HasInput t m
+     , HasLayout t m
      )
   => Behavior t ByteString
   -> m ()
