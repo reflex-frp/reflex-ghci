@@ -1,6 +1,6 @@
 # reflex-ghci
 
-[![Haskell](https://img.shields.io/badge/language-Haskell-orange.svg)](https://haskell.org) [![Hackage](https://img.shields.io/hackage/v/reflex-ghci.svg)](https://hackage.haskell.org/package/reflex-ghci) [![Hackage CI](https://matrix.hackage.haskell.org/api/v2/packages/reflex-ghci/badge)](https://matrix.hackage.haskell.org/#/package/reflex-ghci) [![Travis CI](https://api.travis-ci.org/reflex-frp/reflex-ghci.svg?branch=develop)](https://travis-ci.org/reflex-frp/reflex-ghci) [![BSD3 License](https://img.shields.io/badge/license-BSD3-blue.svg)](https://github.com/reflex-frp/reflex-ghci/blob/master/LICENSE)
+[![Haskell](https://img.shields.io/badge/language-Haskell-orange.svg)](https://haskell.org) [![Hackage](https://img.shields.io/hackage/v/reflex-ghci.svg)](https://hackage.haskell.org/package/reflex-ghci) [![BSD3 License](https://img.shields.io/badge/license-BSD3-blue.svg)](https://github.com/reflex-frp/reflex-ghci/blob/master/LICENSE)
 
 Run GHCi from within a [Reflex FRP](https://reflex-frp.org) application and interact with it using a functional reactive interface.
 
