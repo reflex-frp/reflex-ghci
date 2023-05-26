@@ -1,5 +1,5 @@
-{ pkgs ?  (import ./nixpkgs {}
-}
+{ pkgs ?  (import ./nixpkgs {})
+}:
 pkgs.mkShell {
   name = "reflex-ghci";
   buildInputs = [
@@ -7,6 +7,6 @@ pkgs.mkShell {
     pkgs.ghcid
   ];
   inputsFrom = [
-    (import ./release.nix {}).ghc810.env
+    (import ./release.nix {}).${builtins.currentSystem}.ghc810.env
   ];
 }

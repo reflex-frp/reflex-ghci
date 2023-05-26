@@ -1,11 +1,3 @@
 { callCabal2nix, ... }:
-let
-  src = builtins.filterSource (path: type: !(builtins.elem (baseNameOf path) [
-    "release.nix"
-    ".git"
-    "dist"
-    "dist-newstyle"
-    "cabal.project"
-    ".travis.yml"
-  ])) ./.;
+let src = import ./src.nix;
 in callCabal2nix "reflex-ghci" src {}

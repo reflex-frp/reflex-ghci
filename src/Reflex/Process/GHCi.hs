@@ -199,9 +199,11 @@ ghciWatch p mexec = do
 
   -- On macOS, use the polling backend due to https://github.com/luite/hfsevents/issues/13
   -- TODO check if this is an issue with nixpkgs
-  let fsConfig = noDebounce $ FS.defaultConfig
-        { FS.confUsePolling = Sys.os == "darwin"
-        , FS.confPollInterval = 250000
+  let fsConfig = FS.defaultConfig
+        { FS.confWatchMode =
+            if Sys.os == "darwin"
+              then FS.WatchModePoll 250000
+              else FS.WatchModeOS
         }
   fsEvents <- watchDirectoryTree fsConfig (dir <$ pb) $ \e ->
     takeExtension (FS.eventPath e) `elem` [".hs", ".lhs"]
@@ -213,9 +215,6 @@ ghciWatch p mexec = do
 
   -- Call GHCi and request a reload every time the files we're watching change
   ghci p mexec $ () <$ batchedFsEvents
-  where
-    noDebounce :: FS.WatchConfig -> FS.WatchConfig
-    noDebounce cfg = cfg { FS.confDebounce = FS.NoDebounce }
 
 -- | The output of the GHCi process
 data Ghci t = Ghci
