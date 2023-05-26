@@ -1,8 +1,8 @@
 {
   "owner": "reflex-frp",
   "repo": "reflex-platform",
-  "branch": "aa/reflex-vty-0.2",
+  "branch": "aa/reflex-0.9.0.1",
   "private": false,
-  "rev": "16669aebc5fcb78edc850fdb6198b1c6196b5b5b",
-  "sha256": "0fk5v0kn8hksagi5hx33f627napdcld6b1w6my0vrv2vbdsmhy2v"
+  "rev": "fbad79d203e2d65b10c1866da9f6e8899859c4c6",
+  "sha256": "19n40m249v43fa0dyvy4fdmpn9alypskm42kvm98yf0wb9l44gpj"
 }
