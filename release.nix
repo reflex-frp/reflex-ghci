@@ -1,7 +1,8 @@
 { reflex-platform ? import ./reflex-platform
 }:
 let
-  pkgs = (reflex-platform {}).nixpkgs;
+  rp = reflex-platform {};
+  pkgs = rp.nixpkgs;
   supportedSystems = [ "x86_64-linux" "x86_64-darwin" ];
   inherit (pkgs) lib;
   haskellLib = pkgs.haskell.lib;
@@ -11,6 +12,7 @@ let
       ver = "5.38";
       sha256 = "0kcd3ln9xmc62ka0i7habzvjjar8z63mlvl15rdhf8hqmda0b7r7";
     } {};
+    reflex-process = self.callCabal2nix "reflex-process" (rp.hackGet ./dep/reflex-process) {};
     reflex-vty = self.callHackageDirect {
       pkg = "reflex-vty";
       ver = "0.4.1.1";
@@ -84,7 +86,6 @@ let
           ver = "1.1";
           sha256 = "1krvcafrbj98z5hv55gq4zb1in5yd71nmz9zdiqgnywjzbrvpf75";
         } {};
-
         strict = self.callHackageDirect {
           pkg = "strict";
           ver = "0.5";
@@ -95,8 +96,6 @@ let
           ver = "5.38";
           sha256 = "0kcd3ln9xmc62ka0i7habzvjjar8z63mlvl15rdhf8hqmda0b7r7";
         } {};
-
-
         # Jailbroken until https://github.com/audreyt/string-qq/pull/3
         string-qq = haskellLib.dontCheck super.string-qq;
         # Tests aren't compatible with transformers-0.6
