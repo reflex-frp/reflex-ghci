@@ -23,6 +23,7 @@ let
       ver = "0.3.0.0";
       sha256 = "11wnvjk2kznfcj7m2fnfmh6xskggy0i913rw1kh64lzny7yghh39";
     } {};
+    fsnotify = haskellLib.dontCheck (self.callHackage "fsnotify" "0.4.1.0" {});
   };
   ghcs = lib.genAttrs supportedSystems (system: let
     rp = reflex-platform { inherit system; __useNewerCompiler = true; };
