@@ -12,6 +12,7 @@ let
       ver = "5.38";
       sha256 = "0kcd3ln9xmc62ka0i7habzvjjar8z63mlvl15rdhf8hqmda0b7r7";
     } {};
+    reflex = self.callCabal2nix "reflex" (rp.hackGet ./dep/reflex) {};
     reflex-process = self.callCabal2nix "reflex-process" (rp.hackGet ./dep/reflex-process) {};
     reflex-vty = self.callHackageDirect {
       pkg = "reflex-vty";

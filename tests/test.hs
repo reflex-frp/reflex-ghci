@@ -1,20 +1,23 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
-
-import Control.Monad.Fix (MonadFix)
-import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad
+import Control.Monad.IO.Class (liftIO)
+import qualified Data.Map as Map
 import Reflex
 import Reflex.Host.Headless (runHeadlessApp)
-import Reflex.Workflow (Workflow (..), workflow)
 import System.Directory (copyFile, getCurrentDirectory, withCurrentDirectory)
 import System.IO.Temp (withSystemTempDirectory)
 import qualified System.Process as P
+import qualified Data.ByteString.Char8 as C8
 
 import Reflex.Process.GHCi
-import Reflex.Vty.GHCi
 
 ghciExe :: FilePath
 ghciExe = "ghci"
@@ -22,222 +25,58 @@ ghciExe = "ghci"
 data ExitStatus = Succeeded | Failed String
   deriving (Eq, Show)
 
--- Simple tests with no reloading or interrupts:
---
--- | Test                 | Module Status         | Expression Status         |
--- |----------------------|-----------------------|---------------------------|
--- | testModuleLoad       | Status_LoadSucceeded  | None                      |
--- | testModuleLoadFailed | Status_LoadFailed     | None                      |
--- | testExprErr          | Status_LoadSucceeded  | Status_ExecutionFailed    |
--- | testExprNotFound     | Status_LoadSucceeded  | Status_ExecutionFailed    |
--- | testExprFinished     | Status_LoadSucceeded  | Status_ExecutionSucceeded |
-
 main :: IO ()
 main = do
-  src <- getCurrentDirectory
-  let cmd path load = P.proc ghciExe ["-i" <> src <> path, load]
-  putStrLn "Testing lib-pkg"
-  testLoadAndExecute $ cmd "/tests/lib-pkg/src" "MyLib"
-  putStrLn "Testing lib-exe"
-  testLoadAndExecute $ cmd "/tests/exe-pkg" "Main"
-  putStrLn "Testing lib-pkg-err"
   runHeadlessApp $ do
-    out <- testModuleLoadFailed $ cmd "/tests/lib-pkg-err/src" "MyLib"
-    failOnError out
-    exitOnSuccess out
-  putStrLn "Testing file watching and reloading"
+    pb <- getPostBuild
+    rec
+      r <- ghci (P.shell ghciExe) expr never never
+      let expr = commands 
+            [ ":l tests/exe-pkg/Main.hs"
+            , "main"
+            , ":l tests/lib-pkg-err/src/MyLib/One.hs tests/lib-pkg-err/src/MyLib/Two.hs tests/lib-pkg-err/src/MyLib/Three.hs tests/lib-pkg-err/src/MyLib.hs"
+            , ":l tests/lib-pkg/src/MyLib/One.hs tests/lib-pkg/src/MyLib/Two.hs tests/lib-pkg/src/MyLib/Three.hs tests/lib-pkg/src/MyLib.hs"
+            , "import MyLib"
+            , "err"
+            , "notFound"
+            , "done"
+            , ":q"
+            ] <$ pb
+      results <- foldDyn Map.union Map.empty $ _repl_finished r
+      performEvent_ $ ffor (tagPromptlyDyn results (_repl_exited r)) $ \o -> do
+        liftIO $ print o
+        liftIO $ putStrLn "Simple tests with no reloading or interrupts:"
+        r1 <- assertStdoutEq "Load and run package (exe-pkg/Main.hs:main)" (Map.lookup 10 o) "Hello, Haskell!"
+        r2 <- assertStderr "Fail to load package (lib-pkg-err)" (Map.lookup 11 o) (C8.isInfixOf "Multiple declarations" . unLines)
+        r3 <- assertStdout "Load package (lib-pkg)" (Map.lookup 12 o) (C8.isInfixOf "Ok, four modules loaded" . unLines)
+        r4 <- assertCmd "Exception (lib-pkg/src/MyLib.hs:err)" (Map.lookup 14 o) hasErrors
+        r5 <- assertCmd "Variable not in scope (lib-pkg/src/MyLib.hs:notFound)" (Map.lookup 15 o) hasErrors
+        r6 <- assertStdoutEq "Expression completed (lib-pkg/src/MyLib.hs:done)" (Map.lookup 16 o) "done"
+        when (not . and $ [r1, r2, r3, r4, r5, r6]) $ error "Tests failed"
+    pure $ () <$ _repl_exited r
+  testRepl
   watchAndReloadTest
-
-failOnError
-  :: ( PerformEvent t m
-     , Reflex t
-     )
-  => Event t ExitStatus -> m ()
-failOnError out = performEvent_ $ fforMaybe out $ \case
-  Failed err -> Just $ error $ "Failed with: " <> err
-  Succeeded -> Nothing
-
-exitOnSuccess
-  :: ( Reflex t
-     , Monad m
-     )
-  => Event t ExitStatus
-  -> m (Event t ())
-exitOnSuccess out =
-  return $ () <$ ffilter (==Succeeded) out
-
-testLoadAndExecute
-  :: P.CreateProcess
-  -> IO ()
-testLoadAndExecute cmd = runHeadlessApp $ do
-  out <- switch . current <$> workflow (testModuleLoad cmd)
-  performEvent_ $ liftIO . print <$> out
-  failOnError out
-  exitOnSuccess out
-
-type TestWorkflow t m = Workflow t m (Event t ExitStatus)
-
-testModuleLoad
-  :: ( MonadIO m
-     , TriggerEvent t m
-     , PerformEvent t m
-     , MonadIO (Performable m)
-     , PostBuild t m
-     , MonadFix m
-     , MonadHold t m
-     )
-  => P.CreateProcess
-  -> TestWorkflow t m
-testModuleLoad cmd = Workflow $ do
-  liftIO $ putStrLn "testModuleLoad"
-  g <- ghciWatch cmd Nothing
-  let loaded = fforMaybe (updated $ _ghci_status g) $ \case
-        Status_LoadSucceeded -> Just True
-        Status_LoadFailed -> Just False
-        _ -> Nothing
-  done <- afterShutdown g loaded
-  return ( Failed . show <$> ffilter not done
-         , testExprErr cmd <$ ffilter id done
-         )
-
-testExprErr
-  :: ( MonadIO m
-     , TriggerEvent t m
-     , PerformEvent t m
-     , MonadIO (Performable m)
-     , PostBuild t m
-     , MonadFix m
-     , MonadHold t m
-     )
-  => P.CreateProcess
-  -> TestWorkflow t m
-testExprErr cmd = Workflow $ do
-  liftIO $ putStrLn "testExprErr"
-  g <- ghciWatch cmd $ Just "err"
-  let exception = fforMaybe (updated $ _ghci_status g) $ \case
-        Status_ExecutionFailed -> Just True
-        Status_ExecutionSucceeded -> Just False
-        _ -> Nothing
-  done <- afterShutdown g exception
-  return ( Failed . show <$> ffilter not done
-         , testExprNotFound cmd <$ ffilter id done
-         )
-
-testExprNotFound
-  :: ( MonadIO m
-     , TriggerEvent t m
-     , PerformEvent t m
-     , MonadIO (Performable m)
-     , PostBuild t m
-     , MonadFix m
-     , MonadHold t m
-     )
-  => P.CreateProcess
-  -> TestWorkflow t m
-testExprNotFound cmd = Workflow $ do
-  liftIO $ putStrLn "testExprNotFound"
-  g <- ghciWatch cmd $ Just "notTheFunctionYoureLookingFor"
-  let exception = fforMaybe (updated $ _ghci_status g) $ \case
-        Status_ExecutionFailed -> Just True
-        Status_ExecutionSucceeded -> Just False
-        _ -> Nothing
-  done <- afterShutdown g exception
-  return ( Failed . show <$> ffilter not done
-         , testExprFinished cmd <$ ffilter id done
-         )
-
-testExprFinished
-  :: ( MonadIO m
-     , TriggerEvent t m
-     , PerformEvent t m
-     , MonadIO (Performable m)
-     , PostBuild t m
-     , MonadFix m
-     , MonadHold t m
-     )
-  => P.CreateProcess
-  -> TestWorkflow t m
-testExprFinished cmd = Workflow $ do
-  liftIO $ putStrLn "testExprFinished"
-  g <- ghciWatch cmd $ Just "done"
-  let finished = fforMaybe (updated $ _ghci_status g) $ \case
-        Status_ExecutionFailed -> Just False
-        Status_ExecutionSucceeded -> Just True
-        _ -> Nothing
-  done <- afterShutdown g finished
-  return ( outcome done
-         , never
-         )
-
-outcome :: Functor f => f Bool -> f ExitStatus
-outcome = fmap (\x -> if x then Succeeded else Failed (show x))
 
 watchAndReloadTest :: IO ()
 watchAndReloadTest = withSystemTempDirectory "reflex-ghci-test" $ \p -> do
+  putStrLn "watchAndReloadTest:"
   src <- getCurrentDirectory
   P.callProcess "cp" ["-r", src <> "/tests/lib-pkg-err", p]
   let cmd = P.proc ghciExe ["-i" <> p <> "/lib-pkg-err/src", "MyLib"]
   withCurrentDirectory p $ runHeadlessApp $ do
-    g <- ghciWatch cmd Nothing
-    performEvent_ $ ffor (_ghci_moduleOut g) $ liftIO . print
-    performEvent_ $ ffor (_ghci_moduleErr g) $ liftIO . print
-    performEvent_ $ ffor (updated $ _ghci_status g) $ liftIO . print
-    let loadFailed = fforMaybe (updated $ _ghci_status g) $ \case
-          Status_LoadFailed -> Just ()
-          _ -> Nothing
+    g <- ghciWatch cmd (Just (unsafeCommand ":q")) never never
+    loadFailedDelayed <- debounce 0.5 $ ffilter id $ updated $ ffor (_repl_started g) $ \case
+      (_, Nothing) -> True
+      _ -> False
 
-    loadFailedDelayed <- delay 1 loadFailed -- If we respond too quickly, fsnotify won't deliver the change.
     performEvent_ $ ffor loadFailedDelayed $ \_ -> liftIO $ do
       putStrLn "copying fixed file"
       copyFile (src <> "/tests/lib-pkg/src/MyLib/Three.hs")
                (p <> "/lib-pkg-err/src/MyLib/Three.hs")
 
-    numFailures :: Dynamic t Int <- count loadFailed
-    let loadSucceeded = fforMaybe (updated $ _ghci_status g) $ \case
-          Status_LoadSucceeded -> Just ()
-          _ -> Nothing
-    performEvent_ $ fforMaybe (updated numFailures) $ \x ->
-      if x > 1
-        then Just $ error "Too many failures."
-        else Nothing
+    output <- foldDyn Map.union Map.empty $ _repl_finished g
 
-    afterShutdown g $ gate ((>= 1) <$> current numFailures) loadSucceeded
-
-testModuleLoadFailed
-  :: ( MonadIO m
-     , TriggerEvent t m
-     , PerformEvent t m
-     , MonadIO (Performable m)
-     , PostBuild t m
-     , MonadFix m
-     , MonadHold t m
-     )
-  => P.CreateProcess
-  -> m (Event t ExitStatus)
-testModuleLoadFailed cmd = do
-  liftIO $ putStrLn "testModuleLoadFailed"
-  g <- ghciWatch cmd Nothing
-  let loaded = fforMaybe (updated $ _ghci_status g) $ \case
-        Status_LoadSucceeded -> Just False
-        Status_LoadFailed -> Just True
-        _ -> Nothing
-  done <- afterShutdown g loaded
-  return $ ffor done $ \x ->
-    if x
-      then Succeeded
-      else Failed "testModuleFailed: lib-pkg-err shouldn't have loaded"
-
--- | Utility to help use an 'Event' for stopping the network, but not until the shutdown is complete.
-afterShutdown :: (PerformEvent t m, MonadIO (Performable m), MonadHold t m) => Ghci t -> Event t b -> m (Event t b)
-afterShutdown g e = do
-  eValue <- hold Nothing $ Just <$> e
-  after <- shutdown $ g <$ e
-  pure $ fmapMaybe id $ tag eValue after
-
-debug :: (Reflex t, PerformEvent t m, MonadIO (Performable m)) => Ghci t -> m ()
-debug g = do
-  performEvent_ $ ffor (updated $ _ghci_status g) $ liftIO . print
-  performEvent_ $ ffor (_ghci_moduleOut g) $ liftIO . print
-  performEvent_ $ ffor (_ghci_moduleErr g) $ liftIO . print
-  performEvent_ $ ffor (_ghci_execOut g) $ liftIO . print
-  performEvent_ $ ffor (_ghci_execErr g) $ liftIO . print
+    performEvent $ ffor (tagPromptlyDyn output (_repl_exited g)) $ \o -> do
+      r1 <- assertCmd "Failed to load file" (Map.lookup 8 o) hasErrors
+      r2 <- assertCmd "Changed file detected and loaded" (Map.lookup 9 o) (not . hasErrors)
+      when (not . and $ [r1, r2]) $ error "Test failed"

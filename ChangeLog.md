@@ -1,8 +1,10 @@
 # Revision history for reflex-ghci
 
-## 0.1.6.0
+## 0.2.0.0
 
 * Support ghc 9.6 and reflex-vty 0.4
+* *Breaking change*: Expose a new interface that more robustly represents the state of the child ghci process.
+* Show the most recently run commands and allow user to select from them to see their output
 
 ## 0.1.5.4
 
