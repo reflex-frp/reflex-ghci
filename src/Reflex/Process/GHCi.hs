@@ -197,7 +197,14 @@ ghciWatch p mexec = do
   -- We could use ":show modules" to see which hs files are loaded and determine what to do based
   -- on that, but we'll need to parse that output.
 
+  -- On macOS, use the polling backend due to https://github.com/luite/hfsevents/issues/13
+  -- TODO check if this is an issue with nixpkgs
   let fsConfig = FS.defaultConfig
+        { FS.confWatchMode =
+            if Sys.os == "darwin"
+              then FS.WatchModePoll 250000
+              else FS.WatchModeOS
+        }
   fsEvents <- watchDirectoryTree fsConfig (dir <$ pb) $ \e ->
     takeExtension (FS.eventPath e) `elem` [".hs", ".lhs"]
 
