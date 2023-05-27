@@ -27,9 +27,14 @@ let
   };
   ghcs = lib.genAttrs supportedSystems (system: let
     rp = reflex-platform { inherit system; __useNewerCompiler = true; };
+    rpOld = reflex-platform { inherit system; __useNewerCompiler = false; };
     rpGhc = rp.ghc.override {
       overrides = commonOverrides;
     };
+    rpGhc865 = rpOld.ghc.override {
+      overrides = commonOverrides;
+    };
+
     nixGhc945 = (import ./nixpkgs { inherit system; }).haskell.packages.ghc945.override {
       overrides = self: super: commonOverrides self super // {
         hlint = self.callHackageDirect {
@@ -108,6 +113,7 @@ let
   in
   {
     recurseForDerivations = true;
+    ghc865 = rpGhc865.callCabal2nix "reflex-ghci" (import ./src.nix) {};
     ghc810 = rpGhc.callCabal2nix "reflex-ghci" (import ./src.nix) {};
     ghc945 = nixGhc945.callCabal2nix "reflex-ghci" (import ./src.nix) {};
     ghc961 = nixGhc961.callCabal2nix "reflex-ghci" (import ./src.nix) {};
