@@ -202,7 +202,7 @@ ghciWatch p mexec = do
   let fsConfig = FS.defaultConfig
         { FS.confWatchMode =
             if Sys.os == "darwin"
-              then FS.WatchModePoll 250000
+              then FS.WatchModePoll 200000
               else FS.WatchModeOS
         }
   fsEvents <- watchDirectoryTree fsConfig (dir <$ pb) $ \e ->
