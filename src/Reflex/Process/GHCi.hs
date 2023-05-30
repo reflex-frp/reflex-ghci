@@ -20,11 +20,11 @@ module Reflex.Process.GHCi
 
 import Reflex
 import Reflex.FSNotify (watchDirectoryTree)
-import Reflex.Process (ProcessConfig(..), Process(..), SendPipe(..), createProcess)
+import Reflex.Process (Process(..), ProcessConfig(..), SendPipe(..), createProcess)
 
 import Control.Monad ((<=<))
 import Control.Monad.Fix (MonadFix)
-import Control.Monad.IO.Class (liftIO, MonadIO)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as C8
 import Data.String (IsString)
@@ -104,6 +104,10 @@ ghci cmd mexpr reloadReq = do
       output <- collectOutput (() <$ reload) $ _process_stdout proc
       errors <- collectOutput (() <$ reload) $ _process_stderr proc
 
+      -- Synchronize reading from the two output feeds
+      tick <- tickLossyFromPostBuildTime 0.05
+      let (outE, errE) = splitE $ tag (current $ (,) <$> output <*> errors) tick
+
      -- Only interrupt when there's a file change and we're ready and not in an idle state
       let interruptible s = s `elem` [Status_Loading, Status_Executing]
           requestInterrupt = gate (interruptible <$> current status) (() <$ reloadReq)
@@ -121,13 +125,15 @@ ghci cmd mexpr reloadReq = do
           -- a proxy for GHCi's readiness to be interrupted
           ghciVersionMessage = "GHCi, version.*: https?://www.haskell.org/ghc/" :: ByteString
 
+      let errE' = ffilter (not . C8.null) errE
+
       -- Inspect the output and determine what state GHCi is in
       status :: Dynamic t Status <- holdUniqDyn <=< foldDyn ($) Status_Initializing $ leftmost
-        [ fforMaybe (updated errors) $ \err -> if err Regex.=~ exceptionMessage || err Regex.=~ interactiveErrorMessage
+        [ fforMaybe errE' $ \err -> if err Regex.=~ exceptionMessage || err Regex.=~ interactiveErrorMessage
           then Just $ const Status_ExecutionFailed
           else Nothing
         , const Status_Loading <$ reload
-        , ffor (updated output) $ \out -> case dropWhile (==unescapedPrompt) $ reverse (C8.lines out) of
+        , ffor outE $ \out -> case dropWhile (==unescapedPrompt) $ reverse (C8.lines out) of
             lastLine:_
               | lastLine Regex.=~ okModulesLoaded -> const Status_LoadSucceeded
               | lastLine Regex.=~ failedNoModulesLoaded -> const Status_LoadFailed
@@ -212,7 +218,7 @@ ghciWatch p mexec = do
   -- Events are batched because otherwise we'd get several updates corresponding to one
   -- user-level change. For example, saving a file in vim results in an event claiming
   -- the file was removed followed almost immediately by an event adding the file
-  batchedFsEvents <- batchOccurrences 0.1 fsEvents
+  batchedFsEvents <- batchOccurrences 0.05 fsEvents
 
   -- Call GHCi and request a reload every time the files we're watching change
   ghci p mexec $ () <$ batchedFsEvents
