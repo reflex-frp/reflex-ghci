@@ -127,21 +127,18 @@ ghci cmd mexpr reloadReq = do
           then Just $ const Status_ExecutionFailed
           else Nothing
         , const Status_Loading <$ reload
-        , ffor (updated output) $ \out -> case reverse (C8.lines out) of
-            lastLine:expectedMessage:_
-              | lastLine == prompt && expectedMessage Regex.=~ okModulesLoaded -> const Status_LoadSucceeded
-              | lastLine == prompt && expectedMessage Regex.=~ failedNoModulesLoaded -> const Status_LoadFailed
-              | lastLine == prompt && expectedMessage == msgExprStarted -> const Status_Executing
-              | lastLine Regex.=~ (prompt :: String) && expectedMessage Regex.=~ msgExprFinished -> const Status_ExecutionSucceeded
+        , ffor (updated output) $ \out -> case dropWhile (==unescapedPrompt) $ reverse (C8.lines out) of
+            lastLine:_
+              | lastLine Regex.=~ okModulesLoaded -> const Status_LoadSucceeded
+              | lastLine Regex.=~ failedNoModulesLoaded -> const Status_LoadFailed
+              | lastLine Regex.=~ msgExprStarted -> const Status_Executing
+              | lastLine Regex.=~ msgExprFinished -> \x -> if x == Status_ExecutionFailed then x else Status_ExecutionSucceeded
               | lastLine Regex.=~ ghciVersionMessage -> const Status_Loading
               | otherwise -> \case
                   Status_LoadSucceeded -> case mexpr of
                     Nothing -> Status_LoadSucceeded
                     Just _ -> Status_Executing
                   s -> s
-
-            lastLine:_
-              | lastLine Regex.=~ ghciVersionMessage -> const Status_Loading
             _ -> id
         ]
 
@@ -168,8 +165,12 @@ ghci cmd mexpr reloadReq = do
     , _ghci_process = proc
     }
   where
-    prompt :: IsString a => a
-    prompt = "<| Waiting |>"
+    prompt :: (IsString a, Semigroup a) => a
+    prompt = "\"" <> unescapedPrompt <> "\\n\""
+    unescapedPrompt :: IsString a => a
+    unescapedPrompt = "<| Waiting |>"
+
+
 
 -- | Run a GHCi process that watches for changes to Haskell source files in the
 -- current directory and reloads if they are modified
