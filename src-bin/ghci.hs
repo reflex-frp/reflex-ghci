@@ -44,14 +44,7 @@ main = do
             showVersion version
         ]
   GhciArg { _ghciArg_replCommand = cmd, _ghciArg_execCommand = expr } <- execParser opts
-  mainWidget $ initManager_ $ do
-    exit <- keyCombo (V.KChar 'c', [V.MCtrl])
-    g <- ghciWatch (shell cmd) $ T.encodeUtf8 . T.pack <$> expr
-    case expr of
-      Nothing -> ghciModuleStatus g
-      Just _ -> ghciPanes g
-    readyToExit <- performEvent $ ffor exit $ \_ -> liftIO $ terminateProcess $ _process_handle $ _ghci_process g
-    return $ () <$ readyToExit
+  run cmd expr
 
 -- Some rudimentary test expressions
 -- Run these to test different scenarios like so:

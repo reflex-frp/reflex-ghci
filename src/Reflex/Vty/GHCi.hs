@@ -15,7 +15,7 @@ import Data.ByteString (ByteString)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Reflex.Network
-import Reflex.Process
+import Reflex.Process as P
 import Reflex.Process.GHCi
 import Reflex.Vty
 import qualified Graphics.Vty.Input as V
@@ -192,3 +192,14 @@ shutdown
 shutdown exitReqs = do
   performEvent $ ffor exitReqs $ \g ->
     liftIO $ P.terminateProcess $ _process_handle $ _ghci_process g
+
+-- | The main reflex-ghci widget
+run :: String -> Maybe String -> IO ()
+run cmd expr = mainWidget $ initManager_ $ do
+  exit <- keyCombo (V.KChar 'c', [V.MCtrl])
+  g <- ghciWatch (P.shell cmd) $ T.encodeUtf8 . T.pack <$> expr
+  case expr of
+    Nothing -> ghciModuleStatus g
+    Just _ -> ghciPanes g
+  readyToExit <- performEvent $ ffor exit $ \_ -> liftIO $ P.terminateProcess $ _process_handle $ _ghci_process g
+  return $ () <$ readyToExit
