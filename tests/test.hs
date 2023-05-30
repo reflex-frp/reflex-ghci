@@ -22,6 +22,17 @@ ghciExe = "ghci"
 data ExitStatus = Succeeded | Failed String
   deriving (Eq, Show)
 
+runSingle :: IO ()
+runSingle = do
+  src <- getCurrentDirectory
+  let cmd path load = P.proc ghciExe ["-i" <> src <> path, load]
+  runHeadlessApp $ do
+    g <- ghci (cmd "/tests/lib-pkg/src" "MyLib") (Just "done") never
+    performEvent_ $ ffor (updated $ _ghci_status g) $ liftIO . print
+    fmap (fmap (const ())) $ debounce 1 $ updated $ _ghci_status g
+
+ghci' c e = ghci c e never
+
 -- Simple tests with no reloading or interrupts:
 --
 -- | Test                 | Module Status         | Expression Status         |
@@ -90,8 +101,9 @@ testModuleLoad
   -> TestWorkflow t m
 testModuleLoad cmd = Workflow $ do
   liftIO $ putStrLn "testModuleLoad"
-  g <- ghciWatch cmd Nothing
-  let loaded = fforMaybe (updated $ _ghci_status g) $ \case
+  g <- ghci' cmd Nothing
+  status <- debounce 1 $ updated $ _ghci_status g
+  let loaded = fforMaybe status $ \case
         Status_LoadSucceeded -> Just True
         Status_LoadFailed -> Just False
         _ -> Nothing
@@ -113,8 +125,9 @@ testExprErr
   -> TestWorkflow t m
 testExprErr cmd = Workflow $ do
   liftIO $ putStrLn "testExprErr"
-  g <- ghciWatch cmd $ Just "err"
-  let exception = fforMaybe (updated $ _ghci_status g) $ \case
+  g <- ghci' cmd $ Just "err"
+  status <- debounce 1 $ updated $ _ghci_status g
+  let exception = fforMaybe status $ \case
         Status_ExecutionFailed -> Just True
         Status_ExecutionSucceeded -> Just False
         _ -> Nothing
@@ -136,8 +149,9 @@ testExprNotFound
   -> TestWorkflow t m
 testExprNotFound cmd = Workflow $ do
   liftIO $ putStrLn "testExprNotFound"
-  g <- ghciWatch cmd $ Just "notTheFunctionYoureLookingFor"
-  let exception = fforMaybe (updated $ _ghci_status g) $ \case
+  g <- ghci' cmd $ Just "notTheFunctionYoureLookingFor"
+  status <- debounce 1 $ updated $ _ghci_status g
+  let exception = fforMaybe status $ \case
         Status_ExecutionFailed -> Just True
         Status_ExecutionSucceeded -> Just False
         _ -> Nothing
@@ -159,8 +173,9 @@ testExprFinished
   -> TestWorkflow t m
 testExprFinished cmd = Workflow $ do
   liftIO $ putStrLn "testExprFinished"
-  g <- ghciWatch cmd $ Just "done"
-  let finished = fforMaybe (updated $ _ghci_status g) $ \case
+  g <- ghci' cmd $ Just "done"
+  status <- debounce 1 $ updated $ _ghci_status g
+  let finished = fforMaybe status $ \case
         Status_ExecutionFailed -> Just False
         Status_ExecutionSucceeded -> Just True
         _ -> Nothing
@@ -182,7 +197,9 @@ watchAndReloadTest = withSystemTempDirectory "reflex-ghci-test" $ \p -> do
     performEvent_ $ ffor (_ghci_moduleOut g) $ liftIO . print
     performEvent_ $ ffor (_ghci_moduleErr g) $ liftIO . print
     performEvent_ $ ffor (updated $ _ghci_status g) $ liftIO . print
-    let loadFailed = fforMaybe (updated $ _ghci_status g) $ \case
+
+    status <- debounce 1 $ updated $ _ghci_status g
+    let loadFailed = fforMaybe status $ \case
           Status_LoadFailed -> Just ()
           _ -> Nothing
 
@@ -193,7 +210,8 @@ watchAndReloadTest = withSystemTempDirectory "reflex-ghci-test" $ \p -> do
                (p <> "/lib-pkg-err/src/MyLib/Three.hs")
 
     numFailures :: Dynamic t Int <- count loadFailed
-    let loadSucceeded = fforMaybe (updated $ _ghci_status g) $ \case
+    status <- debounce 1 $ updated $ _ghci_status g
+    let loadSucceeded = fforMaybe status $ \case
           Status_LoadSucceeded -> Just ()
           _ -> Nothing
     performEvent_ $ fforMaybe (updated numFailures) $ \x ->
@@ -216,8 +234,9 @@ testModuleLoadFailed
   -> m (Event t ExitStatus)
 testModuleLoadFailed cmd = do
   liftIO $ putStrLn "testModuleLoadFailed"
-  g <- ghciWatch cmd Nothing
-  let loaded = fforMaybe (updated $ _ghci_status g) $ \case
+  g <- ghci' cmd Nothing
+  status <- debounce 1 $ updated $ _ghci_status g
+  let loaded = fforMaybe status $ \case
         Status_LoadSucceeded -> Just False
         Status_LoadFailed -> Just True
         _ -> Nothing

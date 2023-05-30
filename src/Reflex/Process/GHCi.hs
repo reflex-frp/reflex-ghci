@@ -95,9 +95,7 @@ ghci cmd mexpr reloadReq = do
         }
 
       -- Reload
-      let reload = leftmost
-            [ ":r" <$ reloadReq
-            ]
+      let reload = ":r" <$ reloadReq
 
       -- Capture and accumulate stdout and stderr between reloads.
       -- We'll inspect these values to determine GHCi's state
@@ -105,7 +103,7 @@ ghci cmd mexpr reloadReq = do
       errors <- collectOutput (() <$ reload) $ _process_stderr proc
 
       -- Synchronize reading from the two output feeds
-      tick <- tickLossyFromPostBuildTime 0.05
+      tick <- debounce 0.05 $ leftmost [ updated output, updated errors ]
       let (outE, errE) = splitE $ tag (current $ (,) <$> output <*> errors) tick
 
      -- Only interrupt when there's a file change and we're ready and not in an idle state
@@ -135,10 +133,10 @@ ghci cmd mexpr reloadReq = do
         , const Status_Loading <$ reload
         , ffor outE $ \out -> case dropWhile (==unescapedPrompt) $ reverse (C8.lines out) of
             lastLine:_
+              | lastLine Regex.=~ msgExprFinished -> \x -> if x == Status_ExecutionFailed then x else Status_ExecutionSucceeded
               | lastLine Regex.=~ okModulesLoaded -> const Status_LoadSucceeded
               | lastLine Regex.=~ failedNoModulesLoaded -> const Status_LoadFailed
               | lastLine Regex.=~ msgExprStarted -> const Status_Executing
-              | lastLine Regex.=~ msgExprFinished -> \x -> if x == Status_ExecutionFailed then x else Status_ExecutionSucceeded
               | lastLine Regex.=~ ghciVersionMessage -> const Status_Loading
               | otherwise -> \case
                   Status_LoadSucceeded -> case mexpr of
