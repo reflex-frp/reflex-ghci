@@ -3,6 +3,9 @@
 ## 0.1.6.0
 
 * Support ghc 9.6 and reflex-vty 0.4
+* Bugfix: Make status detection more reliable by filtering prompts out of the output stream
+* Bugfix: Improve reporting of failure statuses (previously, it would sometimes report success incorrectly)
+* Reduce polling times on macOS. We're still using the polling backend here because of a bug in hfsevents
 
 ## 0.1.5.4
 
