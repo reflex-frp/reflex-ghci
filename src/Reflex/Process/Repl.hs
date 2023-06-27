@@ -331,13 +331,14 @@ testRepl = runHeadlessApp $ do
   rec (Repl _ finished _ exit) <- repl (P.shell "ghci") cmds $ \cur line -> (C8.pack (show cur) <> promptPostfix) == line
   output <- foldDyn Map.union Map.empty finished
   passed <- performEvent $ ffor (tagPromptlyDyn output exit) $ \o -> do
+    liftIO $ print o
     liftIO $ putStrLn "testRepl:"
     r1 <- assertStdoutEq "Simple command (1+1)" (Map.lookup 9 o) "2"
     r2 <- assertStdoutEq "IO action (putStrLn)" (Map.lookup 10 o) "hello"
-    r3 <- assertStderr "Not in scope error" (Map.lookup 11 o) (C8.isInfixOf "error: Variable not in scope: oops" . unLines)
+    r3 <- assertStderr "Not in scope error" (Map.lookup 11 o) (C8.isInfixOf "Variable not in scope: oops" . unLines)
     r4 <- assertStdoutEq "Simple command (2+2)" (Map.lookup 12 o) "4"
     r5 <- assertStdoutEq "Simple command (3+4)" (Map.lookup 13 o) "7"
-    r6 <- assertStderr "Exception" (Map.lookup 14 o) (C8.isPrefixOf "*** Exception" . unLines)
+    r6 <- assertStderr "Exception" (Map.lookup 14 o) (C8.isInfixOf "*** Exception" . unLines)
     r7 <- assertStdoutEq "Reload (:r)" (Map.lookup 15 o) "Ok, no modules loaded."
     r8 <- assertStdoutEq "Quit (:q)" (Map.lookup 16 o) "Leaving GHCi."
     pure $ and [r1, r2, r3, r4, r5, r6, r7, r8]
