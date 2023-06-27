@@ -4,172 +4,113 @@
 -}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving #-}
 module Reflex.Process.GHCi
   ( ghci
   , ghciWatch
-  , Ghci(..)
-  , Status(..)
-  , moduleOutput
-  , execOutput
-  , collectOutput
-  , statusMessage
+  , module X
+  , hasErrors
   ) where
 
 import Reflex
 import Reflex.FSNotify (watchDirectoryTree)
-import Reflex.Process (ProcessConfig(..), Process(..), SendPipe(..), createProcess)
+import Reflex.Process (Process(..))
 
-import Control.Monad ((<=<))
+import Control.Monad
 import Control.Monad.Fix (MonadFix)
-import Control.Monad.IO.Class (liftIO, MonadIO)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as C8
-import Data.String (IsString)
+import qualified Data.Map as Map
 import System.Directory (getCurrentDirectory)
 import qualified System.FSNotify as FS
 import System.FilePath.Posix (takeExtension)
 import qualified System.Info as Sys
-import System.Posix.Signals (sigINT)
+import qualified System.Posix.Signals as Signals
 import qualified System.Process as P
 import qualified Text.Regex.TDFA as Regex ((=~))
 
-msg :: (IsString a, Semigroup a) => a -> a
-msg = (<>) "<reflex-ghci>: "
+import Reflex.Process.Repl as X
 
 -- | Runs a GHCi process and reloads it whenever the provided event fires
 ghci
-  :: ( TriggerEvent t m
-     , PerformEvent t m
-     , MonadIO (Performable m)
-     , PostBuild t m
-     , MonadIO m
+  :: ( Adjustable t m
      , MonadFix m
      , MonadHold t m
+     , MonadIO (Performable m)
+     , MonadIO m
+     , NotReady t m
+     , PerformEvent t m
+     , PostBuild t m
+     , TriggerEvent t m
      )
-  => P.CreateProcess
-  -- ^ Command to run to enter GHCi
-  -> Maybe ByteString
-  -- ^ Expression to evaluate whenever GHCi successfully loads modules
-  -> Event t ()
-  -- ^ Ask GHCi to reload
-  -> m (Ghci t)
-ghci cmd mexpr reloadReq = do
-  -- Run the process and feed it some input:
-  let msgInit = msg "performing setup..."
-      msgExprStarted = msg "evaluating expression..."
-      msgExprFinished = msg "expression evaluation ended."
-      putMsgLn :: ByteString -> ByteString
-      putMsgLn m = "Prelude.putStrLn \"" <> m <> "\"\n"
-  rec proc <- createProcess cmd $ ProcessConfig
-        { _processConfig_stdin = SendPipe_Message . (<> "\n") <$> leftmost
-            [ reload
-            -- Execute some expression if GHCi is ready to receive it
-            , fforMaybe (updated status) $ \case
-                Status_LoadSucceeded -> ffor mexpr $ \expr ->
-                  C8.intercalate "\n"
-                    [ putMsgLn msgExprStarted
-                    , putMsgLn expr
-                    , expr
-                    , putMsgLn msgExprFinished
-                    ]
-                _ -> Nothing
-            -- On first load, set the prompt
-            , let f old new = if old == Status_Initializing && new == Status_Loading
-                    then Just $ C8.intercalate "\n"
-                      [ putMsgLn msgInit
-                      , ":set prompt ..."
-                      , ":set -fno-break-on-exception"
-                      , ":set -fno-break-on-error"
-                      , ":set prompt \"\""
-                      , putMsgLn ""
-                      , ":set prompt " <> prompt
-                      , ":r"
-                      ]
-                    else Nothing
-              in attachWithMaybe f (current status) (updated status)
-            ]
-        , _processConfig_signal = sigINT <$ requestInterrupt
-        }
-
-      -- Reload
-      let reload = leftmost
-            [ ":r" <$ reloadReq
-            ]
-
-      -- Capture and accumulate stdout and stderr between reloads.
-      -- We'll inspect these values to determine GHCi's state
-      output <- collectOutput (() <$ reload) $ _process_stdout proc
-      errors <- collectOutput (() <$ reload) $ _process_stderr proc
-
-     -- Only interrupt when there's a file change and we're ready and not in an idle state
-      let interruptible s = s `elem` [Status_Loading, Status_Executing]
-          requestInterrupt = gate (interruptible <$> current status) (() <$ reloadReq)
-
-      -- Define some Regex patterns to use to determine GHCi's state based on output
-      let okModulesLoaded = "Ok.*module.*loaded." :: ByteString
-          failedNoModulesLoaded = "Failed,.*module.*loaded." :: ByteString
-          -- TODO: Is there a way to distinguish GHCi's actual exception output
-          -- from someone printing "*** Exception:" to stderr?
-          -- TODO: Are there other exception patterns to watch out for?
-          exceptionMessage = "\\*\\*\\* Exception:.*" :: ByteString
-          interactiveErrorMessage = "<interactive>:.*:.*:.error:.*" :: ByteString
-          -- We need to know when ghci is initialized enough that it won't die when
-          -- it receives an interrupt. We wait to see the version line in the output as
-          -- a proxy for GHCi's readiness to be interrupted
-          ghciVersionMessage = "GHCi, version.*: https?://www.haskell.org/ghc/" :: ByteString
-
-      -- Inspect the output and determine what state GHCi is in
-      status :: Dynamic t Status <- holdUniqDyn <=< foldDyn ($) Status_Initializing $ leftmost
-        [ fforMaybe (updated errors) $ \err -> if err Regex.=~ exceptionMessage || err Regex.=~ interactiveErrorMessage
-          then Just $ const Status_ExecutionFailed
-          else Nothing
-        , const Status_Loading <$ reload
-        , ffor (updated output) $ \out -> case reverse (C8.lines out) of
-            lastLine:expectedMessage:_
-              | lastLine == prompt && expectedMessage Regex.=~ okModulesLoaded -> const Status_LoadSucceeded
-              | lastLine == prompt && expectedMessage Regex.=~ failedNoModulesLoaded -> const Status_LoadFailed
-              | lastLine == prompt && expectedMessage == msgExprStarted -> const Status_Executing
-              | lastLine Regex.=~ (prompt :: String) && expectedMessage Regex.=~ msgExprFinished -> const Status_ExecutionSucceeded
-              | lastLine Regex.=~ ghciVersionMessage -> const Status_Loading
-              | otherwise -> \case
-                  Status_LoadSucceeded -> case mexpr of
-                    Nothing -> Status_LoadSucceeded
-                    Just _ -> Status_Executing
-                  s -> s
-
-            lastLine:_
-              | lastLine Regex.=~ ghciVersionMessage -> const Status_Loading
-            _ -> id
-        ]
-
-  -- Determine when to switch output stream from GHCi module output to execution output
-  execStream <- hold False $ leftmost
-      [ False <$ reload
-      , fforMaybe (updated status) $ \case
-          Status_LoadSucceeded -> Just True
-          Status_LoadFailed -> Just False
-          Status_Executing -> Just True
-          _ -> Nothing
+  => P.CreateProcess -- ^ How to run GHCi
+  -> Event t [Command] -- ^ Send an expression to evaluate
+  -> Event t () -- ^ Reload
+  -> Event t () -- ^ Shutdown
+  -> m (Repl t)
+ghci runGhci expr reload shutdown = do
+  _ <- liftIO $ Signals.installHandler Signals.sigINT (Signals.Catch (return ())) Nothing
+  pb <- getPostBuild
+  rec
+    r@(Repl proc _finished started exit) <- repl runGhci inputs isPrompt
+    let inputs = mergeWith (<>)
+          [ commands setupCommands <$ pb
+          , command ":r" <$ interrupted
+          , command ":r" <$ reload'
+          , command ":q" <$ shutdown
+          , expr
+          ]
+    let interruptible = ffor started $ \case
+          (_, Nothing) -> False
+          _ -> True
+    -- Don't allow reloads too close together. Sometimes a single change that
+    -- results in a reload might actually cause multiple reload events (e.g.,
+    -- an editor writing a file by deleting and writing it, resulting in two
+    -- filesystem events)
+    reloadThrottled <- throttle 0.1 reload
+    let reload' = gate (not <$> current interruptible) reloadThrottled
+    interrupted <- performEvent $ ffor (gate (current interruptible) reloadThrottled) $ \_ -> do
+      liftIO $ P.interruptProcessGroupOf $ _process_handle proc
+    -- If we can't shut down cleanly within 2 seconds, kill it
+    forceShutdown <- delay 2 shutdown
+    performEvent_ $ ffor forceShutdown $ \_ -> liftIO $ do
+      let h = _process_handle proc
+      P.interruptProcessGroupOf h
+      P.terminateProcess h
+    -- Reinstall the default signal handler after the repl process exits
+    performEvent_ $ ffor exit $ \_ -> liftIO $
+      void $ Signals.installHandler Signals.sigINT Signals.Default Nothing
+  pure r
+  where
+    promptPostfix :: ByteString
+    promptPostfix = "_reflex_ghci_prompt>"
+    isPrompt cur line = (C8.pack (show cur) <> promptPostfix) == line
+    setupCommands =
+      [ ":set prompt-function \\_ x -> let s = \"\\n\" <> show x <> \"" <> promptPostfix <> "\\n\" in System.IO.hPutStr System.IO.stderr s >> pure s"
+      , ":set -fno-break-on-exception"
+      , ":set -fno-break-on-error"
+      , ":set -v1"
+      , ":set -fno-hide-source-paths"
+      , ":set -ferror-spans"
+      , ":set -fdiagnostics-color=never" -- TODO handle ansi escape codes in output
+      , ":r" -- This is here because we might hit errors at load time, before we've had a chance to set up the prompt. This will re-print those errors.
       ]
 
-  -- Below, we split up the output of the GHCi process into things that GHCi itself
-  -- produces (e.g., errors, warnings, loading messages) and the output of the expression
-  -- it is evaluating
-  return $ Ghci
-    { _ghci_moduleOut = gate (not <$> execStream) $ _process_stdout proc
-    , _ghci_moduleErr = gate (not <$> execStream) $ _process_stderr proc
-    , _ghci_execOut = gate execStream $ _process_stdout proc
-    , _ghci_execErr = gate execStream $ _process_stderr proc
-    , _ghci_reload = () <$ reload
-    , _ghci_status = status
-    , _ghci_process = proc
-    }
-  where
-    prompt :: IsString a => a
-    prompt = "<| Waiting |>"
+-- | Detect errors reported in stdout or stderr
+hasErrors :: Cmd -> Bool
+hasErrors (Cmd _ o e) =
+  let errs l =
+        l Regex.=~ exceptionMessage ||
+        l Regex.=~ interactiveErrorMessage ||
+        l Regex.=~ moduleLoadError
+      errOnStderr = any errs $ _lines_terminated e
+      errOnStdout = any (Regex.=~ failedModulesLoaded) $ _lines_terminated o
+  in errOnStderr || errOnStdout
 
 -- | Run a GHCi process that watches for changes to Haskell source files in the
 -- current directory and reloads if they are modified
@@ -181,11 +122,15 @@ ghciWatch
      , MonadIO m
      , MonadFix m
      , MonadHold t m
+     , Adjustable t m
+     , NotReady t m
      )
   => P.CreateProcess
-  -> Maybe ByteString
-  -> m (Ghci t)
-ghciWatch p mexec = do
+  -> Maybe Command
+  -> Event t ()
+  -> Event t ()
+  -> m (Repl t)
+ghciWatch p mexpr reload shutdown = do
   -- Get the current directory so we can observe changes in it
   dir <- liftIO getCurrentDirectory
 
@@ -199,9 +144,11 @@ ghciWatch p mexec = do
 
   -- On macOS, use the polling backend due to https://github.com/luite/hfsevents/issues/13
   -- TODO check if this is an issue with nixpkgs
-  let fsConfig = noDebounce $ FS.defaultConfig
-        { FS.confUsePolling = Sys.os == "darwin"
-        , FS.confPollInterval = 250000
+  let fsConfig = FS.defaultConfig
+        { FS.confWatchMode =
+            if Sys.os == "darwin"
+              then FS.WatchModePoll 200000
+              else FS.WatchModeOS
         }
   fsEvents <- watchDirectoryTree fsConfig (dir <$ pb) $ \e ->
     takeExtension (FS.eventPath e) `elem` [".hs", ".lhs"]
@@ -209,86 +156,32 @@ ghciWatch p mexec = do
   -- Events are batched because otherwise we'd get several updates corresponding to one
   -- user-level change. For example, saving a file in vim results in an event claiming
   -- the file was removed followed almost immediately by an event adding the file
-  batchedFsEvents <- batchOccurrences 0.1 fsEvents
+  batchedFsEvents <- batchOccurrences 0.05 fsEvents
 
-  -- Call GHCi and request a reload every time the files we're watching change
-  ghci p mexec $ () <$ batchedFsEvents
-  where
-    noDebounce :: FS.WatchConfig -> FS.WatchConfig
-    noDebounce cfg = cfg { FS.confDebounce = FS.NoDebounce }
+  -- Call GHCi, request a reload every time the files we're watching change.
+  let reloadEvents = ((() <$ batchedFsEvents) <> reload)
 
--- | The output of the GHCi process
-data Ghci t = Ghci
-  { _ghci_moduleOut :: Event t ByteString
-  -- ^ stdout output produced when loading modules
-  , _ghci_moduleErr :: Event t ByteString
-  -- ^ stderr output produced when loading modules
-  , _ghci_execOut :: Event t ByteString
-  -- ^ stdout output produced while evaluating an expression
-  , _ghci_execErr :: Event t ByteString
-  -- ^ stderr output produced while evaluating an expression
-  , _ghci_reload :: Event t ()
-  -- ^ Event that fires when GHCi is reloading
-  , _ghci_status :: Dynamic t Status
-  -- ^ The current status of the GHCi process
-  , _ghci_process :: Process t ByteString ByteString
-  }
+  rec g <- ghci p sendExpr reloadEvents shutdown
+      sendExpr <- delay 0.1 $ fforMaybe (_repl_finished g) $ \finished -> case reverse (Map.elems finished) of
+            c@(Cmd cmd _ _):_ -> if displayCommand cmd == ":r" && not (hasErrors c)
+              then case mexpr of
+                Nothing -> Nothing
+                Just expr -> Just [expr]
+              else Nothing
+            _ -> Nothing
+  pure g
 
--- | The state of the GHCi process
-data Status
-  = Status_Initializing
-  | Status_Loading
-  | Status_LoadFailed
-  | Status_LoadSucceeded
-  | Status_Executing
-  | Status_ExecutionFailed
-  | Status_ExecutionSucceeded
-  deriving (Show, Read, Eq, Ord)
+failedModulesLoaded :: ByteString
+failedModulesLoaded = "Failed,.*module.*loaded." :: ByteString
 
--- | Collect all the GHCi module output (i.e., errors, warnings, etc) and optionally clear
--- every time GHCi reloads
-moduleOutput
-  :: (Reflex t, MonadFix m, MonadHold t m)
-  => Behavior t Bool
-  -- ^ Whether to clear the output on reload
-  -> Ghci t
-  -> m (Dynamic t ByteString)
-moduleOutput clear g = collectOutput
-  (gate clear $ () <$ _ghci_reload g) $
-    leftmost [_ghci_moduleOut g, _ghci_moduleErr g]
+-- TODO: Is there a way to distinguish GHCi's actual exception output
+-- from someone printing "*** Exception:" to stderr?
+-- TODO: Are there other exception patterns to watch out for?
+exceptionMessage :: ByteString
+exceptionMessage = "\\*\\*\\* Exception:.*" :: ByteString
 
--- | Collect all the GHCi expression output (i.e., the output of the called function) and optionally clear
--- every time GHCi reloads
-execOutput
-  :: (Reflex t, MonadFix m, MonadHold t m)
-  => Behavior t Bool
-  -- ^ Whether to clear the output on reload
-  -> Ghci t
-  -> m (Dynamic t ByteString)
-execOutput clear g = collectOutput
-  (gate clear $ () <$ _ghci_reload g) $
-    leftmost [_ghci_execOut g, _ghci_execErr g]
+interactiveErrorMessage :: ByteString
+interactiveErrorMessage = "<interactive>:.*:.*:.error:.*" :: ByteString
 
--- | Collect output, appending new output to the end of the accumulator
-collectOutput
-  :: (Reflex t, MonadFix m, MonadHold t m)
-  => Event t ()
-  -- ^ Clear output
-  -> Event t ByteString
-  -- ^ Output to add
-  -> m (Dynamic t ByteString)
-collectOutput clear out = foldDyn ($) "" $ leftmost
-  [ flip mappend <$> out
-  , const "" <$ clear
-  ]
-
--- | Describe the current status of GHCi in a human-readable way
-statusMessage :: IsString a => Status -> a
-statusMessage = \case
-  Status_Initializing -> "Initializing..."
-  Status_Loading -> "Loading Modules..."
-  Status_LoadFailed -> "Failed to Load Modules!"
-  Status_LoadSucceeded -> "Successfully Loaded Modules!"
-  Status_Executing -> "Executing Command..."
-  Status_ExecutionFailed -> "Command Failed!"
-  Status_ExecutionSucceeded -> "Command Succeeded!"
+moduleLoadError :: ByteString
+moduleLoadError = "^.+\\.(l)?hs:[0-9]+:[0-9]+: error:$"

@@ -1,4 +1,4 @@
-module MyLib (someFunc) where
+module MyLib where
 
 import MyLib.One
 import MyLib.Two
