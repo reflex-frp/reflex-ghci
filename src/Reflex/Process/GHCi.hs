@@ -163,11 +163,11 @@ ghciWatch p mexpr reload shutdown = do
 
   rec g <- ghci p sendExpr reloadEvents shutdown
       sendExpr <- delay 0.1 $ fforMaybe (_repl_finished g) $ \finished -> case reverse (Map.elems finished) of
-            c@(Cmd cmd _ _):_ -> if displayCommand cmd == ":r" && hasErrors c
-              then Nothing
-              else case mexpr of
+            c@(Cmd cmd _ _):_ -> if displayCommand cmd == ":r" && not (hasErrors c)
+              then case mexpr of
                 Nothing -> Nothing
                 Just expr -> Just [expr]
+              else Nothing
             _ -> Nothing
   pure g
 
