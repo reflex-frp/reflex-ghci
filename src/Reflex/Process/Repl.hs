@@ -182,12 +182,10 @@ repl runRepl cmds isPrompt = do
       new_n <- liftIO $ atomicModifyIORef' n $ \n' -> (succ n', n')
       pure $ (new_n, input')
   ixedInput <- foldDyn Map.union Map.empty newIxedInput
-  performEvent_ $ ffor (updated ixedInput) $ liftIO . appendFile "input" . show
   proc <- createProcess runRepl $ ProcessConfig
     { _processConfig_stdin = fmapMaybe sendCommands cmds
     , _processConfig_signal = never
     }
-  performEvent_ $ ffor (_process_stderr proc) $ liftIO . C8.appendFile "stderr"
   pb <- getPostBuild
   exited <- performEventAsync $ ffor pb $ \_ cb ->
     liftIO $ void $ forkIO $ cb <=< P.waitForProcess $ _process_handle proc

@@ -162,7 +162,6 @@ ghciWatch p mexpr reload shutdown = do
   let reloadEvents = ((() <$ batchedFsEvents) <> reload)
 
   rec g <- ghci p sendExpr reloadEvents shutdown
-      performEvent_ $ liftIO . appendFile "x" . (<>"\n\n") . show . (take 1 . reverse . Map.elems) <$> _repl_finished g
       sendExpr <- delay 0.1 $ fforMaybe (_repl_finished g) $ \finished -> case reverse (Map.elems finished) of
             c@(Cmd cmd _ _):_ -> if displayCommand cmd == ":r" && hasErrors c
               then Nothing
