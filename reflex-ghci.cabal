@@ -35,7 +35,7 @@ library
     , process >= 1.6 && < 1.7
     , reflex >= 0.7.1.0 && < 1
     , reflex-fsnotify >= 0.3 && < 0.4
-    , reflex-process >= 0.3 && < 0.4
+    , reflex-process >= 0.3.2 && < 0.4
     , regex-tdfa >= 1.2.3 && < 1.4
     , reflex-vty >= 0.3 && < 0.5
     , semialign > 1 && < 2
