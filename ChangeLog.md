@@ -1,5 +1,9 @@
 # Revision history for reflex-ghci
 
+## 0.2.0.1
+
+* Support reflex-vty 0.5
+
 ## 0.2.0.0
 
 * Support ghc 9.6 and reflex-vty 0.4
