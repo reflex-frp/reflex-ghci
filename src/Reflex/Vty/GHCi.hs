@@ -57,8 +57,12 @@ run cmd expr = mainWidget $ initManager_ $ do
           (ix, Just c) -> cmdbtn ix c
 
         let showOutput (Cmd _ out err) = do
-              _ <- tile flex $ boxStatic def $ scrollableText never $ pure $ T.decodeUtf8 . unLines $ out
-              _ <- tile flex $ boxStatic def $ scrollableText never $ pure $ T.decodeUtf8 . unLines $ err
+              let scrollCfg = def
+                    { _scrollableConfig_startingPosition = ScrollPos_Bottom
+                    , _scrollableConfig_scrollToBottom = pure (Just ScrollToBottom_Maintain)
+                    }
+              _ <- tile flex $ boxStatic def $ scrollableText scrollCfg $ pure $ T.decodeUtf8 . unLines $ out
+              _ <- tile flex $ boxStatic def $ scrollableText scrollCfg $ pure $ T.decodeUtf8 . unLines $ err
               pure ()
 
         void $ networkHold (void $ networkView $ maybe blank (showOutput . snd) <$> command) $ leftmost

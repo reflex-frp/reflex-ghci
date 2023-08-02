@@ -14,10 +14,10 @@ let
     } {};
     reflex = self.callCabal2nix "reflex" (rp.hackGet ./dep/reflex) {};
     reflex-process = self.callCabal2nix "reflex-process" (rp.hackGet ./dep/reflex-process) {};
-    reflex-vty = self.callHackageDirect {
+		reflex-vty = self.callHackageDirect {
       pkg = "reflex-vty";
-      ver = "0.4.1.1";
-      sha256 = "1dzkfhfwifl47fvvzd40yqvyckpc3q6d9g18az9mqlbxfhszfb45";
+			ver = "0.5.1.0";
+			sha256 = "0h6fh2aiy5m9l5v1fnrdi3pwx15p37vqv1yhp6556yzcb3bnbmyp";
     } {};
     reflex-fsnotify = self.callHackageDirect {
       pkg = "reflex-fsnotify";
